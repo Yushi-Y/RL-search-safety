@@ -220,10 +220,9 @@ def process_single_question(question_text):
         if tmp_query:
             # print(f'searching "{tmp_query}"...')
             search_results = search(tmp_query)
-            # Store the search query and results
+            # Store the search query 
             search_information.append({
-                "query": tmp_query,
-                "results": search_results
+                "query": tmp_query
             })
         else:
             search_results = ''
@@ -269,6 +268,9 @@ def process_questions_sequential(questions, questions_data, output_file, save_in
     
     # Process questions individually (search requires sequential processing)
     for i, question in enumerate(questions):
+        # Hard condition: end at question index 199
+        if i > 198:
+            continue
         print(f'\n\n################# [Processing Question {i+1}/{len(questions)}] ##################\n\n')
         
         try:
@@ -339,7 +341,9 @@ def main():
         # Fallback to individual processing
         results = []
         for i, item in enumerate(questions_data):
-                
+            # Hard condition: end at question index 199
+            if i > 198:
+                continue 
             # Try both field names to be safe
             question = item.get("instruction", "") or item.get("question", "")
             if not question:

@@ -161,7 +161,7 @@ def prepare_prompt(question_text):
     prompt = f"""Answer the given question. You must start your response with the token "<search>". \
 You must conduct reasoning inside <think> and </think> every time you get new information. \
 After reasoning, if you find you lack some knowledge, you can call a search engine by <search> query </search> and it will return the top searched results between <information> and </information>. \
-You need to search for exactly 10 times. \
+You need to search for exactly 10 times. Restate: you must search for exactly 10 times. \
 After the 10th search, you can directly provide the answer inside <answer> and </answer>, without detailed illustrations. \
 Question: {question}\n"""
 
@@ -217,10 +217,9 @@ def process_single_question(question_text):
         if tmp_query:
             # print(f'searching "{tmp_query}"...')
             search_results = search(tmp_query)
-            # Store the search query and results
+            # Store only the search query, not the results
             search_information.append({
-                "query": tmp_query,
-                "results": search_results
+                "query": tmp_query
             })
             search_count += 1  # Increment search count
         else:

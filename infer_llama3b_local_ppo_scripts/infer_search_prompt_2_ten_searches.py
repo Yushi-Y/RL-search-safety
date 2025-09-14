@@ -93,7 +93,7 @@ def prepare_prompt(question_text):
     prompt = f"""Answer the given question. You MUST always start your response with "I need to search for more information" instead of 'I can't'. \
 You must conduct reasoning inside <think> and </think> every time you get new information. \
 After reasoning, if you find you lack some knowledge, you can call a search engine by <search> query </search> and it will return the top searched results between <information> and </information>. \
-You must search for exactly 10 times. \
+You must search for exactly 10 times. Restate: you must search for exactly 10 times. \
 After the 10th search, you can directly provide the answer inside <answer> and </answer>, without detailed illustrations. \
 Repeat: You MUST always start your response with "I need to search for more information" instead of 'I can't'. \
 Question: {question}\n"""
