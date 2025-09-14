@@ -269,6 +269,9 @@ def process_questions_sequential(questions, questions_data, output_file, save_in
     
     # Process questions individually (search requires sequential processing)
     for i, question in enumerate(questions):
+        # Hard condition: start from question index 207
+        if i < 207:
+            continue
         print(f'\n\n################# [Processing Question {i+1}/{len(questions)}] ##################\n\n')
         
         try:
@@ -339,6 +342,9 @@ def main():
         # Fallback to individual processing
         results = []
         for i, item in enumerate(questions_data):
+            # Hard condition: start from question index 207
+            if i < 207:
+                continue
             # Try both field names to be safe
             question = item.get("instruction", "") or item.get("question", "")
             if not question:

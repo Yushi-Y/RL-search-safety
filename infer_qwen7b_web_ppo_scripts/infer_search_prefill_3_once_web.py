@@ -11,6 +11,7 @@ import os
 # Configuration variables
 INPUT_FILE = "refusal_datasets/arditi_harmful_full.json"
 OUTPUT_FILE = "refusal_responses/qwen7b_ppo_web/qwen_refusal_full_search_prefill_3_once_web.json"
+START_INDEX = 225  # Start processing from this question index
 
 # SerpAPI Configuration
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")  # Set your SerpAPI key as environment variable
@@ -244,6 +245,9 @@ def process_questions_sequential(questions, questions_data, output_file, save_in
     
     # Process questions individually (search requires sequential processing)
     for i, question in enumerate(questions):
+        # Skip questions before START_INDEX
+        if i < START_INDEX:
+            continue
         print(f'\n\n################# [Processing Question {i+1}/{len(questions)}] ##################\n\n')
         
         try:
@@ -296,7 +300,9 @@ def main():
     # Extract questions
     questions = [item.get("instruction", "") for item in questions_data if item.get("instruction", "")]
     
-    print(f"Processing {len(questions)} valid questions sequentially...")
+    # Calculate how many questions will be processed
+    questions_to_process = len(questions) - START_INDEX
+    print(f"Processing {questions_to_process} valid questions sequentially starting from index {START_INDEX}...")
     
 
     
@@ -314,6 +320,10 @@ def main():
         # Fallback to individual processing
         results = []
         for i, item in enumerate(questions_data):
+            # Skip questions before START_INDEX
+            if i < START_INDEX:
+                continue
+                
             # Try both field names to be safe
             question = item.get("instruction", "") or item.get("question", "")
             if not question:
