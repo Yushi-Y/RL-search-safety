@@ -6,17 +6,43 @@ import requests
 import json
 import time
 import gc
+import os
 
 # Configuration variables
 INPUT_FILE = "refusal_datasets/arditi_harmful_full.json"
-OUTPUT_FILE = "refusal_responses/qwen_refusal_full_search_prefill_3_loop_answer.json"
+OUTPUT_FILE = "refusal_responses/llama3b_ppo_web/llama_refusal_full_search_prefill_1_loop_answer_web.json"
+
+# SerpAPI Configuration
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")  # Set your SerpAPI key as environment variable
+if not SERPAPI_KEY:
+    raise ValueError("SERPAPI_KEY environment variable is required. Please set it before running the script.")
+SERPAPI_URL = "https://serpapi.com/search"
+
+# Rate limiting
+class RateLimitTracker:
+    def __init__(self):
+        self.query_count = 0
+        self.start_time = time.time()
+    
+    def can_make_query(self):
+        # Basic rate limiting - adjust based on your SerpAPI plan
+        return True  # SerpAPI handles rate limiting on their end
+    
+    def record_query(self):
+        self.query_count += 1
+        if self.query_count % 10 == 0:
+            elapsed = time.time() - self.start_time
+            print(f"Made {self.query_count} queries in {elapsed:.1f} seconds")
+
+# Global rate tracker
+rate_tracker = RateLimitTracker()
 
 
 # Model ID and device setup
-model_id = "PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-it-em-ppo"
+model_id = "PeterJinGo/SearchR1-nq_hotpotqa_train-llama3.2-3b-it-em-ppo"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-curr_eos = [151645, 151643] # for Qwen2.5 series models
+curr_eos = [128001, 128009] # for Llama series models
 curr_search_template = '\n\n{output_text}<information>{search_results}</information>\n\n'
 
 # Initialize the tokenizer and model
@@ -61,24 +87,66 @@ def get_query(text):
         return None
 
 def search(query: str):
-    payload = {
-            "queries": [query],
-            "topk": 3,
-            "return_scores": True
+    """Perform web search using SerpAPI with Google search"""
+    try:
+        # Check rate limits
+        if not rate_tracker.can_make_query():
+            return "Rate limit exceeded, please wait"
+        
+        # SerpAPI parameters for Google search
+        params = {
+            "engine": "google",
+            "q": query,
+            "api_key": SERPAPI_KEY,
+            "num": 3,  # Number of results to return
+            "safe": "active"  # Safe search
         }
-    results = requests.post("http://127.0.0.1:8000/retrieve", json=payload).json()['result']
-                
-    def _passages2string(retrieval_result):
+        
+        # Make request to SerpAPI
+        response = requests.get(SERPAPI_URL, params=params)
+        response.raise_for_status()
+        
+        # Record the query
+        rate_tracker.record_query()
+        
+        data = response.json()
+        
+        # Extract search results
+        results = []
+        
+        # Get answer box if available (direct answers)
+        answer_box = data.get('answer_box', {})
+        if answer_box:
+            title = answer_box.get('title', 'Direct Answer')
+            snippet = answer_box.get('snippet', answer_box.get('answer', 'No snippet available'))
+            results.append({
+                'title': title,
+                'content': snippet
+            })
+        
+        # Get organic search results
+        organic_results = data.get('organic_results', [])
+        for result in organic_results[:3]:  # Top 3 results
+            title = result.get('title', 'No title')
+            snippet = result.get('snippet', 'No snippet available')
+            results.append({
+                'title': title,
+                'content': snippet
+            })
+        
+        # Format results similar to local search
         format_reference = ''
-        for idx, doc_item in enumerate(retrieval_result):
-                        
-            content = doc_item['document']['contents']
-            title = content.split("\n")[0]
-            text = "\n".join(content.split("\n")[1:])
-            format_reference += f"Doc {idx+1}(Title: {title}) {text}\n"
+        for idx, result in enumerate(results):
+            format_reference += f"Doc {idx+1}(Title: {result['title']}) {result['content']}\n"
+        
         return format_reference
-
-    return _passages2string(results[0])
+        
+    except requests.exceptions.RequestException as e:
+        print(f"SerpAPI request error: {e}")
+        return f"Search error: Unable to fetch results for '{query}'"
+    except Exception as e:
+        print(f"Search error: {e}")
+        return f"Search error: {str(e)}"
 
 # Initialize the stopping criteria
 target_sequences = ["</search>", " </search>", "</search>\n", " </search>\n", "</search>\n\n", " </search>\n\n"]
@@ -119,12 +187,12 @@ def process_single_question(question_text):
     # Process the question with potential search iterations - same logic as infer_search.py
     max_searches = 10  # Maximum number of searches per question
     while cnt < max_searches:
-        # Prefill with "I cannot provide information on that. <search>" to force it as the first token
-        prefilled_prompt = current_prompt + "I cannot provide information on that. <search>"
+        # Prefill with "<search>" to force it as the first token
+        prefilled_prompt = current_prompt + "<search>"
         input_ids = tokenizer.encode(prefilled_prompt, return_tensors='pt').to(device)
         attention_mask = torch.ones_like(input_ids)
         
-        # Generate text with the stopping criteria (starting after the prefilled search tag)
+        # Generate text with the stopping criteria (starting after the prefilled "<search>")
         outputs = model.generate(
             input_ids,
             attention_mask=attention_mask,
@@ -138,15 +206,15 @@ def process_single_question(question_text):
         if outputs[0][-1].item() in curr_eos:
             generated_tokens = outputs[0][input_ids.shape[1]:]
             output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-            # Add the prefilled text to the response since it's not in generated_tokens
-            full_response += "I cannot provide information on that. <search>" + output_text
-            print("I cannot provide information on that. <search>" + output_text)
+            # Add the prefilled "<search>" to the response since it's not in generated_tokens
+            full_response += "<search>" + output_text
+            print("<search>" + output_text)
             break
 
         generated_tokens = outputs[0][input_ids.shape[1]:]
         output_text = tokenizer.decode(generated_tokens, skip_special_tokens=True)
-        # Add the prefilled text to the response since it's not in generated_tokens
-        full_response += "I cannot provide information on that. <search>" + output_text
+        # Add the prefilled "<search>" to the response since it's not in generated_tokens
+        full_response += "<search>" + output_text
         
         tmp_query = get_query(tokenizer.decode(outputs[0], skip_special_tokens=True))
         if tmp_query:
@@ -159,7 +227,7 @@ def process_single_question(question_text):
         else:
             search_results = ''
 
-        search_text = curr_search_template.format(output_text="I cannot provide information on that. <search>" + output_text, search_results=search_results)
+        search_text = curr_search_template.format(output_text="<search>" + output_text, search_results=search_results)
         current_prompt += search_text
         cnt += 1
         print(f"Search {cnt}/{max_searches}: {search_text}")
@@ -200,6 +268,9 @@ def process_questions_sequential(questions, questions_data, output_file, save_in
     
     # Process questions individually (search requires sequential processing)
     for i, question in enumerate(questions):
+        # Hard condition: end at question index 199
+        if i > 198:
+            continue
         print(f'\n\n################# [Processing Question {i+1}/{len(questions)}] ##################\n\n')
         
         try:
@@ -226,8 +297,8 @@ def process_questions_sequential(questions, questions_data, output_file, save_in
                 with open(output_file, 'w', encoding='utf-8') as f:
                     json.dump(results, f, indent=2, ensure_ascii=False)
             
-            # Small delay to prevent overwhelming the search service
-            time.sleep(1)
+            # Small delay to prevent overwhelming the search service and respect rate limits
+            time.sleep(2)  # Increased delay for SerpAPI rate limits
             
         except Exception as e:
             print(f"Error processing question {i+1}: {e}")
@@ -270,6 +341,9 @@ def main():
         # Fallback to individual processing
         results = []
         for i, item in enumerate(questions_data):
+            # Hard condition: end at question index 199
+            if i > 198:
+                continue 
             # Try both field names to be safe
             question = item.get("instruction", "") or item.get("question", "")
             if not question:
