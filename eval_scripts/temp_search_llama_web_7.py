@@ -20,9 +20,9 @@ os.makedirs('/data/kebl6672/.cache/huggingface', exist_ok=True)
 def main(input_file=None, output_file=None):
     # Load your responses
     if input_file is None:
-        input_file = "refusal_responses/qwen7b_ppo_local/qwen_refusal_full_search.json"
+        input_file = "/data/kebl6672/AGENTIC-RL/refusal_responses/llama3b_ppo_web/llama_refusal_full_search_prefill_1_once_web.json"
     if output_file is None:
-        output_file = "eval_results/qwen7b_ppo_local/qwen_results_search_full_search.json"
+        output_file = "/data/kebl6672/AGENTIC-RL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_1_once_web.json"
     
     print(f"Loading responses from {input_file}...")
     

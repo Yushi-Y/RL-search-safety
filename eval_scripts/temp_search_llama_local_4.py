@@ -20,9 +20,9 @@ os.makedirs('/data/kebl6672/.cache/huggingface', exist_ok=True)
 def main(input_file=None, output_file=None):
     # Load your responses
     if input_file is None:
-        input_file = "refusal_responses/qwen7b_ppo_local/qwen_refusal_full_search.json"
+        input_file = "/data/kebl6672/AGENTIC-RL/refusal_responses/llama3b_ppo_local/llama_refusal_full_search_prefill_1_loop_answer.json"
     if output_file is None:
-        output_file = "eval_results/qwen7b_ppo_local/qwen_results_search_full_search.json"
+        output_file = "/data/kebl6672/AGENTIC-RL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_prefill_1_loop_answer.json"
     
     print(f"Loading responses from {input_file}...")
     
@@ -51,7 +51,7 @@ def main(input_file=None, output_file=None):
     print("Initializing Prometheus evaluator...")
     model = VLLM(
         model="prometheus-eval/prometheus-7b-v2.0",
-        gpu_memory_utilization=0.7,  # Reduce from default 0.9 to 0.5
+        gpu_memory_utilization=0.9,  # Reduce from default 0.9 to 0.5
         max_model_len=1024  # Reduce context length to save memory
     )
     prometheus = PrometheusEval(model=model, absolute_grade_template=ABSOLUTE_PROMPT)
