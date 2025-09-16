@@ -17,8 +17,8 @@ os.makedirs('/data/kebl6672/.cache/huggingface', exist_ok=True)
 
 def main():
     # Load your responses
-    input_file = "refusal_responses/qwen7b_ppo_local/qwen_refusal_full_search_prefill_1_once_v2.json"
-    output_file = "eval_results/qwen7b_ppo_local/qwen_v2_results_harm_full_search_prefill_1_once.json"
+    input_file = "refusal_responses/qwen7b_ppo_web/qwen_refusal_full_search_prefill_2_loop_answer_web.json"
+    output_file = "eval_results/qwen7b_ppo_web/qwen_results_harm_full_search_prefill_2_loop_answer_web.json"
     
     print(f"Loading responses from {input_file}...")
     with open(input_file, "r", encoding='utf-8') as f:
