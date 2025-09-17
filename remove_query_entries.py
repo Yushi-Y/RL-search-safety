@@ -26,10 +26,10 @@ def process_file(file_path):
             if 'query_evaluations' in question_data:
                 original_count = len(question_data['query_evaluations'])
                 
-                # Filter out entries where query is "query"
+                # Filter out entries where query is "query" or "Query"
                 question_data['query_evaluations'] = [
                     entry for entry in question_data['query_evaluations']
-                    if entry.get('query') != 'query'
+                    if entry.get('query') not in ['query', 'Query']
                 ]
                 
                 removed_count = original_count - len(question_data['query_evaluations'])
@@ -59,11 +59,11 @@ def process_file(file_path):
 def main():
     """Main function to process all search_eval files."""
     # Directory containing the files
-    base_dir = "/data/kebl6672/AGENTIC-RL/eval_results/llama3b_ppo_local"
+    base_dir = "/data/kebl6672/AGENTIC-RL/eval_results"
     
-    # Find all search_eval JSON files
-    pattern = os.path.join(base_dir, "search_eval*.json")
-    files = glob.glob(pattern)
+    # Find all search_eval JSON files in all subdirectories
+    pattern = os.path.join(base_dir, "**", "search_eval*.json")
+    files = glob.glob(pattern, recursive=True)
     
     if not files:
         print("No search_eval files found!")
