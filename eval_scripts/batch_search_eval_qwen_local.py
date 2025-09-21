@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
 Batch script to run search.py over all files in refusal_responses/qwen7b_ppo_local/
+Usage: 
+    python batch_search_eval_qwen_local.py                    # Process all files
+    python batch_search_eval_qwen_local.py file1.json file2.json  # Process specific files
 """
 
 import os
 import subprocess
 import glob
 import json
+import sys
 
 def main():
     # Get the project root directory (parent of eval_scripts)
@@ -16,20 +20,49 @@ def main():
     input_dir = os.path.join(project_root, "refusal_responses/qwen7b_ppo_local/")
     output_dir = os.path.join(project_root, "eval_results/qwen7b_ppo_local/")
     
-    # Get all JSON files in the directory
-    pattern = os.path.join(input_dir, "*.json")
-    files = glob.glob(pattern)
+    # Create output directory if it doesn't exist
+    os.makedirs(output_dir, exist_ok=True)
+    
+    # Check if specific files were provided as command line arguments
+    if len(sys.argv) > 1:
+        # Process specific files provided as arguments
+        files = []
+        for filename in sys.argv[1:]:
+            # Add .json extension if not provided
+            if not filename.endswith('.json'):
+                filename += '.json'
+            file_path = os.path.join(input_dir, filename)
+            if os.path.exists(file_path):
+                files.append(file_path)
+            else:
+                print(f"Warning: File not found: {filename}")
+        if not files:
+            print("No valid files found. Exiting.")
+            return
+    else:
+        # Get all JSON files in the directory
+        pattern = os.path.join(input_dir, "*.json")
+        files = glob.glob(pattern)
     
     print(f"Found {len(files)} files to process:")
     for i, file in enumerate(files, 1):
         print(f"  {i}. {os.path.basename(file)}")
     
-    print(f"\nStarting batch processing...")
+    print(f"\nStarting batch processing for qwen7b_ppo_local...")
     
     # Process each file
     for i, input_file in enumerate(files, 1):
         filename = os.path.basename(input_file)
         output_file = os.path.join(output_dir, f"search_eval_{filename}")
+        
+        # Check if output file already exists
+        if os.path.exists(output_file):
+            file_size = os.path.getsize(output_file)
+            print(f"\n{'='*80}")
+            print(f"Skipping file {i}/{len(files)}: {filename} (already evaluated)")
+            print(f"Existing output: {output_file} ({file_size} bytes)")
+            print(f"{'='*80}")
+            continue
         
         print(f"\n{'='*80}")
         print(f"Processing file {i}/{len(files)}: {filename}")
@@ -37,7 +70,7 @@ def main():
         print(f"{'='*80}")
         
         # Create a temporary search.py with this specific file in eval_scripts directory
-        temp_script = os.path.join(os.path.dirname(__file__), f"temp_search_{i}.py")
+        temp_script = os.path.join(os.path.dirname(__file__), f"temp_search_qwen_local_{i}.py")
         
         # Read the original search.py
         script_path = os.path.join(project_root, "eval_scripts", "search.py")
@@ -76,9 +109,13 @@ def main():
                     print(f"✅ Successfully processed {filename} (saved {file_size} bytes)")
                 else:
                     print(f"⚠️  Processing completed but output file not found: {output_file}")
+                    print(f"Debug: stdout: {result.stdout[:500]}...")
+                    print(f"Debug: stderr: {result.stderr[:500]}...")
             else:
                 print(f"❌ Error processing {filename}")
+                print(f"Return code: {result.returncode}")
                 print(f"Error: {result.stderr}")
+                print(f"Output: {result.stdout}")
                 
         except subprocess.TimeoutExpired:
             print(f"⏰ Timeout processing {filename}")
@@ -90,7 +127,7 @@ def main():
                 os.remove(temp_script)
     
     print(f"\n{'='*80}")
-    print("Batch processing complete!")
+    print("Batch processing complete for qwen7b_ppo_local!")
     print(f"Processed {len(files)} files")
     print(f"Results saved in: {output_dir}")
     print(f"{'='*80}")

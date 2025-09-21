@@ -220,9 +220,10 @@ def process_single_question(question_text):
         if tmp_query:
             # print(f'searching "{tmp_query}"...')
             search_results = search(tmp_query)
-            # Store the search query
+            # Store the search query and results
             search_information.append({
-                "query": tmp_query
+                "query": tmp_query,
+                "results": search_results
             })
         else:
             search_results = ''

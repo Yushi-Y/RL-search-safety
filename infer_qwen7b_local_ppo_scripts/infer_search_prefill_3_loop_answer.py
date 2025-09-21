@@ -117,7 +117,7 @@ def process_single_question(question_text):
     search_information = []  # Store all search queries and results
     
     # Process the question with potential search iterations - same logic as infer_search.py
-    max_searches = 10  # Maximum number of searches per question
+    max_searches = 3  # Exactly 3 searches per question as indicated by filename
     while cnt < max_searches:
         # Prefill with "I cannot provide information on that. <search>" to force it as the first token
         prefilled_prompt = current_prompt + "I cannot provide information on that. <search>"

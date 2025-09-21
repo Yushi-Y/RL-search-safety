@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """
 Batch script to run search.py over all files in refusal_responses/qwen7b_ppo_web/
+Usage: 
+    python batch_search_eval_qwen_web.py                    # Process all files
+    python batch_search_eval_qwen_web.py file1.json file2.json  # Process specific files
 """
 
 import os
 import subprocess
 import glob
 import json
+import sys
 
 def main():
     # Get the project root directory (parent of eval_scripts)
@@ -19,9 +23,26 @@ def main():
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
     
-    # Get all JSON files in the directory
-    pattern = os.path.join(input_dir, "*.json")
-    files = glob.glob(pattern)
+    # Check if specific files were provided as command line arguments
+    if len(sys.argv) > 1:
+        # Process specific files provided as arguments
+        files = []
+        for filename in sys.argv[1:]:
+            # Add .json extension if not provided
+            if not filename.endswith('.json'):
+                filename += '.json'
+            file_path = os.path.join(input_dir, filename)
+            if os.path.exists(file_path):
+                files.append(file_path)
+            else:
+                print(f"Warning: File not found: {filename}")
+        if not files:
+            print("No valid files found. Exiting.")
+            return
+    else:
+        # Get all JSON files in the directory
+        pattern = os.path.join(input_dir, "*.json")
+        files = glob.glob(pattern)
     
     print(f"Found {len(files)} files to process:")
     for i, file in enumerate(files, 1):
@@ -33,6 +54,15 @@ def main():
     for i, input_file in enumerate(files, 1):
         filename = os.path.basename(input_file)
         output_file = os.path.join(output_dir, f"search_eval_{filename}")
+        
+        # Check if output file already exists
+        if os.path.exists(output_file):
+            file_size = os.path.getsize(output_file)
+            print(f"\n{'='*80}")
+            print(f"Skipping file {i}/{len(files)}: {filename} (already evaluated)")
+            print(f"Existing output: {output_file} ({file_size} bytes)")
+            print(f"{'='*80}")
+            continue
         
         print(f"\n{'='*80}")
         print(f"Processing file {i}/{len(files)}: {filename}")
