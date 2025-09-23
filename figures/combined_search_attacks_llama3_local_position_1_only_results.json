@@ -1,0 +1,34 @@
+{
+  "it_search_llama3_local": {
+    "1": 2.7,
+    "2": 1.0
+  },
+  "base_search_llama3_local": {
+    "1": 1.1851851851851851,
+    "2": 5.0
+  },
+  "search_attack_average_llama3_local": {
+    "1": 1.6288614304163098,
+    "2": 1.863954248366013
+  },
+  "multi_search_attack_average_llama3_local": {
+    "1": 1.7994519900306873,
+    "2": 2.59846155679489
+  },
+  "search_attack_datasets_llama3_local": [
+    "prefill_1_once",
+    "prefill_2_once",
+    "prefill_3_once",
+    "prompt_1",
+    "prompt_2"
+  ],
+  "multi_search_attack_datasets_llama3_local": [
+    "search",
+    "base",
+    "prompt_1_ten_searches",
+    "prompt_2_ten_searches",
+    "prefill_1_loop_answer",
+    "prefill_2_loop_answer",
+    "prefill_3_loop_answer"
+  ]
+}

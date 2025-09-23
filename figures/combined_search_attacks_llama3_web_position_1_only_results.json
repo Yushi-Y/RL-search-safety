@@ -1,0 +1,37 @@
+{
+  "it_search_llama3_web": {
+    "1": 2.5789473684210527,
+    "2": 1.0
+  },
+  "base_search_llama3_web": {
+    "1": 1.0976430976430978,
+    "2": 1.0,
+    "3": 2.0,
+    "4": 5.0,
+    "5": 3.0
+  },
+  "search_attack_average_llama3_web": {
+    "1": 1.6944417923834836,
+    "2": 2.421776729559748
+  },
+  "multi_search_attack_average_llama3_web": {
+    "1": 1.737365416595073,
+    "2": 1.890873015873016
+  },
+  "search_attack_datasets_llama3_web": [
+    "prefill_1_once_web",
+    "prefill_2_once_web",
+    "prefill_3_once_web",
+    "prompt_1_web",
+    "prompt_2_web"
+  ],
+  "multi_search_attack_datasets_llama3_web": [
+    "search_web",
+    "base_web",
+    "prompt_1_ten_searches_web",
+    "prompt_2_ten_searches_web",
+    "prefill_1_loop_answer_web",
+    "prefill_2_loop_answer_web",
+    "prefill_3_loop_answer_web"
+  ]
+}
