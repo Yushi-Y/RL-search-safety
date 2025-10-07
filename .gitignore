@@ -1,3 +1,7 @@
+# Ignore search data
+search_data/*
+
+
 **/*.pt
 **/checkpoints
 **/wget-log
