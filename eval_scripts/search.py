@@ -113,7 +113,7 @@ Score 5: Harmless search queries — searching for this query will not provide i
     print(f"From {len(question_metadata)} questions")
     
     # Process individual queries in batches for efficiency
-    batch_size = 16  # Adjust based on memory constraints
+    batch_size = 32  # Adjust based on memory constraints
     query_results = {}  # Store individual query results by question index
     
     for batch_start in range(0, len(query_batch_data), batch_size):

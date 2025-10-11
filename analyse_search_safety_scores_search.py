@@ -90,13 +90,13 @@ def count_questions_by_query_count(question_data):
 def main():
     # File paths for all datasets (ordered for legend)
     datasets = {
-        'search': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search.json",
-        'base': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_base.json",
-        'prefill_1_once': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prefill_1_once_web.json",
-        'prefill_2_once': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prefill_2_once_web.json",
-        'prefill_3_once': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prefill_3_once_web.json",
-        'prompt_1': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prompt_1_web.json",
-        'prompt_2': "/data/kebl6672/AGENTIC-RL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prompt_2_web.json"
+        'search': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search.json",
+        'base': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_base.json",
+        'prefill_1_once': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prefill_1_once_web.json",
+        'prefill_2_once': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prefill_2_once_web.json",
+        'prefill_3_once': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prefill_3_once_web.json",
+        'prompt_1': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prompt_1_web.json",
+        'prompt_2': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_web/search_eval_qwen_refusal_full_search_prompt_2_web.json"
     }
     
     print("Loading data...")
@@ -196,7 +196,7 @@ def main():
             if dataset_name == 'search':
                 color = '#228B22'  # Forest green for IT search
             elif dataset_name == 'base':
-                color = '#DC143C'  # Crimson red for Base
+                color = '#808080'  # Light gray for base search
             elif dataset_name in ['prompt_1', 'prompt_2']:
                 color = '#6BAED6'  # Soft blue for both Prompt A and B
             elif dataset_name in ['prefill_1_once', 'prefill_2_once']:
@@ -210,9 +210,9 @@ def main():
             
             # Clean up dataset names for legend
             if dataset_name == 'search':
-                clean_name = 'IT search'
+                clean_name = 'IT-search'
             elif dataset_name == 'base':
-                clean_name = 'Base search'
+                clean_name = 'Base-search'
             elif dataset_name == 'prefill_1_once':
                 clean_name = 'Prefill A'
             elif dataset_name == 'prefill_2_once':
@@ -232,16 +232,16 @@ def main():
                         label=clean_name, 
                         color=color, linewidth=2, markersize=8)
                 
-                # Add value labels on points for search, base, prompt_1 and prefill_2_once
-                if dataset_name in ['search', 'base', 'prompt_1', 'prefill_2_once']:
-                    for j, (pos, mean_val, scaled_val) in enumerate(zip(all_positions, means, scaled_means)):
-                        if mean_val > 0:
-                            plt.annotate(f'{scaled_val:.0f}', (pos, scaled_val), 
-                                       textcoords="offset points", 
-                                       xytext=(0, 5 + (i * 2)),  # Offset labels to avoid overlap
-                                       ha='center', fontsize=14, color=color, fontweight='bold')
+                # Add value labels on points - removed all numbers
+                # if dataset_name in ['search', 'base']:
+                #     for j, (pos, mean_val, scaled_val) in enumerate(zip(all_positions, means, scaled_means)):
+                #         if mean_val > 0:
+                #             plt.annotate(f'{scaled_val:.0f}', (pos, scaled_val), 
+                #                        textcoords="offset points", 
+                #                        xytext=(0, 5 + (i * 2)),  # Offset labels to avoid overlap
+                #                        ha='center', fontsize=14, color=color, fontweight='bold')
     
-    plt.xlabel('Search query position', fontsize=18)
+    # plt.xlabel('Search query position', fontsize=18)  # X-axis label removed
     plt.ylabel('Average search safety', fontsize=18)
     # Remove title
     plt.legend(loc='upper right', fontsize=16, framealpha=0.9, ncol=2)
@@ -256,7 +256,7 @@ def main():
     plt.tight_layout()
     
     # Save the plot
-    output_path = "/data/kebl6672/AGENTIC-RL/figures/search_safety_scores_first_5_positions.png"
+    output_path = "/data/kebl6672/ARL/figures/search_safety_scores_first_5_positions.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
     print(f"\nSearch safety scores line plot saved to: {output_path}")
@@ -319,7 +319,7 @@ def main():
             'position_counts': all_position_counts[dataset_name]
         }
     
-    results_path = "/data/kebl6672/AGENTIC-RL/figures/search_safety_scores_results.json"
+    results_path = "/data/kebl6672/ARL/figures/search_safety_scores_results.json"
     with open(results_path, 'w') as f:
         json.dump(results, f, indent=2)
     print(f"Detailed results saved to: {results_path}")

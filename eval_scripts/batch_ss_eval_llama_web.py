@@ -18,7 +18,7 @@ def main():
     
     # Directory containing the response files
     input_dir = os.path.join(project_root, "refusal_responses/llama3b_ppo_web/")
-    output_dir = os.path.join(project_root, "eval_results/llama3b_ppo_web/")
+    output_dir = os.path.join(project_root, "eval_results/")
     
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
