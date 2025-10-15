@@ -95,9 +95,9 @@ def main():
         'base_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_base_web.json",
         'prompt_1_ten_searches_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prompt_1_ten_searches_web.json",
         'prompt_2_ten_searches_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prompt_2_ten_searches_web.json",
-        'prefill_1_loop_answer_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_1_loop_answer_web.json",
-        'prefill_2_loop_answer_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_2_loop_answer_web.json",
-        'prefill_3_loop_answer_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_3_loop_answer_web.json"
+        'prefill_1_loop_answer_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_1_loop_answer_web_new_stricter.json",
+        'prefill_2_loop_answer_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_2_loop_answer_web_new_stricter.json",
+        'prefill_3_loop_answer_web': "/data/kebl6672/ARL/eval_results/llama3b_ppo_web/search_eval_llama_refusal_full_search_prefill_3_loop_answer_web_new_stricter.json"
     }
     
     print("Loading llama web data...")
@@ -172,8 +172,8 @@ def main():
     colors = ['#2ca02c', '#d62728', '#ff7f0e', '#1f77b4', '#9467bd', '#17becf', '#e377c2', '#8c564b', '#bcbd22']
     markers = ['o', 'X', 's', '^', 'D', 'v', 'p', 'h', '*']
     
-    # Plot search/base/prompt datasets (first 5 positions) and prefill datasets (all 10 positions)
-    search_positions = list(range(1, 6))
+    # Plot search/base/prompt datasets (first 1 position) and prefill datasets (all 10 positions)
+    search_positions = list(range(1, 2))  # Only first position (1 query)
     prefill_positions = list(range(1, 11))
     
     # Function to scale harm scores: 1=0, 5=100, scale linearly
@@ -181,6 +181,9 @@ def main():
         if score == 0:
             return 0
         return ((score - 1) / (5 - 1)) * 100
+    
+    # Store IT search value at position 1 for horizontal line
+    it_search_value_at_pos1 = None
     
     # Plot each dataset
     for i, (dataset_name, position_avgs) in enumerate(all_position_avgs.items()):
@@ -193,6 +196,10 @@ def main():
             
             means = [position_avgs.get(pos, 0) for pos in positions_to_plot]
             scaled_means = [scale_harm_score(mean) for mean in means]
+            
+            # Store IT search value at position 1
+            if dataset_name == 'search_web' and len(scaled_means) > 0:
+                it_search_value_at_pos1 = scaled_means[0]
             
             # Assign colors based on dataset type
             if dataset_name == 'search_web':
@@ -232,7 +239,7 @@ def main():
             if any(mean > 0 for mean in means):
                 plt.plot(positions_to_plot, scaled_means, f'{marker}-', 
                         label=clean_name, 
-                        color=color, linewidth=2, markersize=8)
+                        color=color, linewidth=3, markersize=10)
                 
                 # Add value labels on points - removed all numbers
                 # for j, (pos, mean_val, scaled_val) in enumerate(zip(positions_to_plot, means, scaled_means)):
@@ -251,13 +258,17 @@ def main():
     plt.xticks(list(range(1, 11)), fontsize=18)
     plt.yticks(fontsize=18)
     
-    # Set y-axis limits to show 0-100 scale
-    plt.ylim(-5, 105)
+    # Set y-axis limits to show 0-70 scale
+    plt.ylim(0, 70)
     
-    # Add vertical line to separate search/base/prompt and prefill regions
-    plt.axvline(x=5.5, color='gray', linestyle='--', alpha=0.5)
-    plt.text(3, 95, 'IT-search/Base-search/Prompt(10 times)\n1-5 queries', ha='center', fontsize=17)
-    plt.text(8, 95, 'Prefill (10 times)\n1-10 queries', ha='center', fontsize=17)
+    # Add horizontal dashed green line at IT search value (position 1)
+    if it_search_value_at_pos1 is not None:
+        plt.axhline(y=it_search_value_at_pos1, color='green', linestyle='--', alpha=0.6, linewidth=2, xmin=(1-0.5)/(10.5-0.5))
+    
+    # Add vertical line to separate search/base/prompt and prefill regions - removed
+    # plt.axvline(x=5.5, color='gray', linestyle='--', alpha=0.5)
+    # plt.text(3, 70, 'IT-search/Base-search/Prompt(10 times)\n1 query', ha='center', fontsize=17)
+    # plt.text(8, 70, 'Prefill (10 times)\n10 queries', ha='center', fontsize=17)
     
     plt.tight_layout()
     

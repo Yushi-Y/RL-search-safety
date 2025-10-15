@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Multi-dataset analysis script to compare average harm scores for search queries between llama local datasets:
+Multi-dataset analysis script to compare average harm scores for search queries between datasets:
 - search (IT) - plot first 5 positions
 - base - plot first 5 positions
 - prompt_1_ten_searches - plot first 5 positions
@@ -78,7 +78,7 @@ def analyze_query_positions(question_data, dataset_name):
     return position_averages, position_counts, position_scores
 
 def count_questions_by_query_count(question_data):
-    """Count number of questions with 1, 2, 3, 4, 5 search queries"""
+    """Count number of questions with different numbers of search queries"""
     query_count_distribution = {}
     for question in question_data:
         num_queries = question['num_queries']
@@ -89,18 +89,18 @@ def count_questions_by_query_count(question_data):
     return query_count_distribution
 
 def main():
-    # File paths for all llama local datasets
+    # File paths for all datasets
     datasets = {
-        'search': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search.json",
-        'base': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_base.json",
-        'prompt_1_ten_searches': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_prompt_1_ten_searches.json",
-        'prompt_2_ten_searches': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_prompt_2_ten_searches.json",
-        'prefill_1_loop_answer': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_prefill_1_loop_answer_new_stricter.json",
-        'prefill_2_loop_answer': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_prefill_2_loop_answer_new_stricter.json",
-        'prefill_3_loop_answer': "/data/kebl6672/ARL/eval_results/llama3b_ppo_local/search_eval_llama_refusal_full_search_prefill_3_loop_answer_new_stricter.json"
+        'search': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search.json",
+        'base': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_base.json",
+        'prompt_1_ten_searches': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_prompt_1_ten_searches.json",
+        'prompt_2_ten_searches': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_prompt_2_ten_searches.json",
+        'prefill_1_loop_answer': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_prefill_1_loop_answer.json",
+        'prefill_2_loop_answer': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_prefill_2_loop_answer.json",
+        'prefill_3_loop_answer': "/data/kebl6672/ARL/eval_results/qwen7b_ppo_local/search_eval_qwen_refusal_full_search_prefill_3_loop_answer.json"
     }
     
-    print("Loading llama local data...")
+    print("Loading data...")
     
     # Load data for all datasets
     all_data = {}
@@ -141,7 +141,7 @@ def main():
     
     # Print position statistics for all datasets
     print(f"\n" + "="*80)
-    print("HARM SCORES BY QUERY POSITION (ALL POSITIONS) - LLAMA LOCAL DATASETS")
+    print("HARM SCORES BY QUERY POSITION")
     print("="*80)
     
     for dataset_name in all_position_avgs.keys():
@@ -153,7 +153,7 @@ def main():
     
     # Print query count distribution for all datasets
     print(f"\n" + "="*80)
-    print("QUESTIONS BY NUMBER OF SEARCH QUERIES - LLAMA LOCAL DATASETS")
+    print("QUESTIONS BY NUMBER OF SEARCH QUERIES")
     print("="*80)
     
     for dataset_name in all_query_count_dist.keys():
@@ -172,18 +172,15 @@ def main():
     colors = ['#2ca02c', '#d62728', '#ff7f0e', '#1f77b4', '#9467bd', '#17becf', '#e377c2', '#8c564b', '#bcbd22']
     markers = ['o', 'X', 's', '^', 'D', 'v', 'p', 'h', '*']
     
-    # Plot search/base/prompt datasets (first 1 position) and prefill datasets (all 10 positions)
-    search_positions = list(range(1, 2))  # Only first position (1 query)
-    prefill_positions = list(range(1, 11))
-    
     # Function to scale harm scores: 1=0, 5=100, scale linearly
     def scale_harm_score(score):
         if score == 0:
             return 0
         return ((score - 1) / (5 - 1)) * 100
     
-    # Store IT search value at position 1 for horizontal line
-    it_search_value_at_pos1 = None
+    # Plot search/base/prompt datasets (first 5 positions) and prefill datasets (all 10 positions)
+    search_positions = list(range(1, 6))
+    prefill_positions = list(range(1, 11))
     
     # Plot each dataset
     for i, (dataset_name, position_avgs) in enumerate(all_position_avgs.items()):
@@ -196,10 +193,6 @@ def main():
             
             means = [position_avgs.get(pos, 0) for pos in positions_to_plot]
             scaled_means = [scale_harm_score(mean) for mean in means]
-            
-            # Store IT search value at position 1
-            if dataset_name == 'search' and len(scaled_means) > 0:
-                it_search_value_at_pos1 = scaled_means[0]
             
             # Assign colors based on dataset type
             if dataset_name == 'search':
@@ -219,9 +212,9 @@ def main():
             
             # Clean up dataset names for legend
             if dataset_name == 'search':
-                clean_name = 'IT-search'
+                clean_name = 'IT search'
             elif dataset_name == 'base':
-                clean_name = 'Base-search'
+                clean_name = 'Base search'
             elif dataset_name == 'prompt_1_ten_searches':
                 clean_name = 'Prompt A (10 times)'
             elif dataset_name == 'prompt_2_ten_searches':
@@ -258,29 +251,25 @@ def main():
     plt.xticks(list(range(1, 11)), fontsize=18)
     plt.yticks(fontsize=18)
     
-    # Set y-axis limits to show 0-70 scale
-    plt.ylim(0, 70)
-    
-    # Add horizontal dashed green line at IT search value (position 1)
-    if it_search_value_at_pos1 is not None:
-        plt.axhline(y=it_search_value_at_pos1, color='green', linestyle='--', alpha=0.6, linewidth=2, xmin=(1-0.5)/(10.5-0.5))
+    # Set y-axis limits to show 0-90 scale
+    plt.ylim(0, 90)
     
     # Add vertical line to separate search/base/prompt and prefill regions - removed
     # plt.axvline(x=5.5, color='gray', linestyle='--', alpha=0.5)
-    # plt.text(3, 70, 'IT-search/Base-search/Prompt(10 times)\n1 query', ha='center', fontsize=17)
-    # plt.text(8, 70, 'Prefill (10 times)\n10 queries', ha='center', fontsize=17)
+    # plt.text(3, 90, 'IT-search/Base-search/Prompt (10 times)\n1-5 queries', ha='center', fontsize=17)
+    # plt.text(8, 90, 'Prefill (10 times)\n10 queries', ha='center', fontsize=17)
     
     plt.tight_layout()
     
     # Save the plot
-    output_path = "/data/kebl6672/ARL/figures/multi_search_safety_scores_llama_local_10_positions.png"
+    output_path = "/data/kebl6672/ARL/figures/multi_search_safety_scores_10_positions.png"
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     plt.savefig(output_path, dpi=300, bbox_inches='tight')
-    print(f"\nSearch safety scores line plot (llama local) saved to: {output_path}")
+    print(f"\nSearch safety scores line plot saved to: {output_path}")
     
     # Create a comparison table for all positions
     print(f"\n" + "="*80)
-    print("COMPARISON TABLE - ALL POSITIONS (LLAMA LOCAL DATASETS)")
+    print("COMPARISON TABLE - ALL POSITIONS")
     print("="*80)
     
     # Print header
@@ -307,7 +296,7 @@ def main():
     
     # Create query count distribution comparison table
     print(f"\n" + "="*80)
-    print("QUERY COUNT DISTRIBUTION COMPARISON TABLE (LLAMA LOCAL DATASETS)")
+    print("QUERY COUNT DISTRIBUTION COMPARISON TABLE")
     print("="*80)
     
     # Print header
@@ -342,7 +331,7 @@ def main():
             'position_counts': all_position_counts[dataset_name]
         }
     
-    results_path = "/data/kebl6672/ARL/figures/multi_search_safety_scores_llama_local_results.json"
+    results_path = "/data/kebl6672/ARL/figures/multi_search_safety_scores_results.json"
     with open(results_path, 'w') as f:
         json.dump(results, f, indent=2)
     print(f"Detailed results saved to: {results_path}")
