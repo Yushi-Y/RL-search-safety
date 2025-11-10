@@ -124,3 +124,18 @@ tests/e2e/toy_examples/deepspeed/synchronous/output.txt
 log/
 
 **logs
+
+# search analysis
+analyse_search/*
+
+# all model responses
+all_responses/*
+qwen_responses_v2/*
+refusal_responses/*
+
+# additional attacks
+attacks/infer_qwen14b_local_ppo_scripts/*
+attacks/infer_research_q7b_loc_po/*
+attacks/infer_v2_local/*
+
+
