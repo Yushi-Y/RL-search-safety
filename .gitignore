@@ -53,6 +53,11 @@ agentharm_eval/
 analyse_search/
 
 # ==============================
+# Interp results (JSON)
+# ==============================
+interp_results/**/*.json
+
+# ==============================
 # Generated figures & plots
 # ==============================
 figures/*.png
