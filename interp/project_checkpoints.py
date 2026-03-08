@@ -1,15 +1,15 @@
 """
-Project qwen3b GRPO checkpoint representations onto the search direction.
+Project qwen7b IT and Search-R1 (RL-ed) representations onto the search_query direction.
 
-For each checkpoint (IT baseline + RL steps):
+For each model (IT baseline + RL-trained Search-R1):
 1. Load model
 2. For each harmful prompt, format with search system prompt + prefilled <search>
 3. Single forward pass, extract hidden state at last token (<search>)
-4. Project onto search_query direction (extracted from IT model) - best direction so far
-5. Save mean projections per checkpoint
+4. Project onto search_query direction (attack vs natural, extracted from IT model)
+5. Save mean projections per model
 
-Hypothesis: more RL steps → larger projection onto search_query direction
-(i.e., the model's <search> representation becomes more "attack-like", i.e. harmful, rather than "natural-like", i.e. benign).
+Hypothesis: RL training → larger projection onto search_query direction
+(i.e., the model's <search> representation becomes more "attack-like" rather than "natural-like").
 """
 
 import torch
@@ -21,26 +21,18 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 # --- Configuration ---
-CHECKPOINT_DIR = Path("/VData/kebl6672/ARL/verl_checkpoints/search-r1-grpo-qwen2.5-3b-it-em/actor")
-DIRECTION_FILE = Path("/VData/kebl6672/ARL/interp_results/directions/search_direction_qwen3b/search_direction.json")
+DIRECTION_FILE = Path("/VData/kebl6672/ARL/interp_results/directions/search_query_direction_qwen7b/search_query_direction.json")
 HARMFUL_PATH = Path("/VData/kebl6672/ARL/refusal_datasets/harmful_combined.json")
 OUTPUT_DIR = Path("/VData/kebl6672/ARL/interp_results/checkpoint_projections")
+
+MODELS = {
+    "Qwen2.5-7B-IT": "Qwen/Qwen2.5-7B-Instruct",
+    "Search-R1 (RL)": "PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-it-em-grpo-v0.2",
+}
 
 # Match extraction split: 600 sampled with seed 42 for direction extraction, rest held out
 EXTRACTION_SEED = 42
 EXTRACTION_N = 600
-
-# IT baseline + all RL steps
-CHECKPOINTS = {
-    "IT (step 0)": "Qwen/Qwen2.5-3B-Instruct",
-    "step 25": str(CHECKPOINT_DIR / "global_step_25"),
-    "step 50": str(CHECKPOINT_DIR / "global_step_50"),
-    "step 75": str(CHECKPOINT_DIR / "global_step_75"),
-    "step 100": str(CHECKPOINT_DIR / "global_step_100"),
-    "step 125": str(CHECKPOINT_DIR / "global_step_125"),
-    "step 150": str(CHECKPOINT_DIR / "global_step_150"),
-    "step 175": str(CHECKPOINT_DIR / "global_step_175"),
-}
 
 SEARCH_SYSTEM_PROMPT_TEMPLATE = """Answer the given question. \
 You must conduct reasoning inside <think> and </think> every time you get new information. \
@@ -67,10 +59,10 @@ def format_prompt(question, tokenizer):
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Load direction
+    # Load search_query direction
     if not DIRECTION_FILE.exists():
         print(f"ERROR: Direction file not found: {DIRECTION_FILE}")
-        print("Run extract_d.py for qwen3b first.")
+        print("Run extract_search_query_d.py for qwen7b first.")
         return
 
     with open(DIRECTION_FILE) as f:
@@ -91,10 +83,12 @@ def main():
     prompts = [p for p in all_harmful if p not in train_set]
     print(f"Held-out test prompts: {len(prompts)} (from {len(all_harmful)} total, {len(train_set)} used for direction extraction)")
 
-    # Process each checkpoint
+    print(f"Models to process: {list(MODELS.keys())}")
+
+    # Process each model
     all_results = {}
 
-    for ckpt_name, model_path in CHECKPOINTS.items():
+    for ckpt_name, model_path in MODELS.items():
         print(f"\n{'='*60}")
         print(f"Processing: {ckpt_name} ({model_path})")
         print(f"{'='*60}")
@@ -125,7 +119,7 @@ def main():
 
         torch.cuda.empty_cache()
 
-        # Project onto direction
+        # Project onto search_query direction
         ckpt_results = {}
         for key in layer_keys:
             stacked = torch.stack(reps[key]).double()
@@ -144,7 +138,7 @@ def main():
         torch.cuda.empty_cache()
 
     # Save results
-    output_file = OUTPUT_DIR / "qwen3b_grpo_search_projections.json"
+    output_file = OUTPUT_DIR / "qwen7b_it_vs_searchr1_search_query_projections.json"
     with open(output_file, "w") as f:
         json.dump(all_results, f, indent=2)
     print(f"\nSaved: {output_file}")
@@ -161,14 +155,14 @@ def main():
 
     ax.set_xticks(x)
     ax.set_xticklabels(ckpt_names, rotation=30, ha='right')
-    ax.set_ylabel("Mean projection onto search direction")
-    ax.set_title("Qwen3B GRPO: <search> representation projection by RL step")
+    ax.set_ylabel("Mean projection onto search_query direction")
+    ax.set_title("Qwen7B IT vs Search-R1: <search> projection onto search_query direction")
     ax.legend()
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "qwen3b_grpo_projection_by_step.png", dpi=300)
+    plt.savefig(OUTPUT_DIR / "qwen7b_it_vs_searchr1_search_query_projection.png", dpi=300)
     plt.close()
-    print(f"Saved plot: {OUTPUT_DIR / 'qwen3b_grpo_projection_by_step.png'}")
+    print(f"Saved plot: {OUTPUT_DIR / 'qwen7b_it_vs_searchr1_search_query_projection.png'}")
 
 
 if __name__ == "__main__":
