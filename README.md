@@ -13,9 +13,8 @@ ARL/
 │   ├── llm_agent/           # LLM agent implementation
 │   └── retrieve/            # Retrieval server code
 ├── attacks/                  # Jailbreak attack inference scripts
-│   ├── infer_llama3b_*/     # Llama-3.2-3B attack variants
-│   ├── infer_qwen7b_*/      # Qwen2.5-7B attack variants
-│   └── infer_qwen14b_*/     # Qwen2.5-14B attack variants
+│   ├── infer_engine.py      # Shared inference engine
+│   └── run_infer.py         # Unified CLI for running attacks
 ├── eval_scripts/             # Evaluation (harm, refusal, search safety)
 ├── interp/                   # Interpretability analysis (directions, weights, steering)
 ├── figures/                  # Plotting scripts
@@ -92,19 +91,26 @@ Configure `BASE_MODEL`, `EXPERIMENT_NAME`, and `CUDA_VISIBLE_DEVICES` in the tra
 
 ## Jailbreak Attacks
 
-The `attacks/` directory contains inference scripts for testing model safety with harmful queries from `refusal_datasets/`:
+All attack variants are run via a single CLI (`attacks/run_infer.py`). Attack types include prefill attacks (forcing `<search>` at the start of the response), prompt injections, and loop variants.
 
-- **Prefill attacks**: Force `<search>` token prefix to bypass refusal
-- **Prompt-based attacks**: Inject adversarial instructions in the prompt
-- **Loop/answer variants**: Multi-turn attack strategies
-
-Example:
+Examples:
 ```bash
 conda activate retriever  # needs retrieval server running
-python attacks/infer_qwen7b_local_ppo_scripts/infer_search_prefill_1.py
+
+# Prefill <search> once, then free generation
+python attacks/run_infer.py --model qwen7b-it-ppo --prefill "<search>" --loop-mode once -o out.json
+
+# Force 10 consecutive searches
+python attacks/run_infer.py --model qwen7b-it-ppo --prefill "<search>" --loop-mode loop_prefill --max-searches 10 -o out.json
+
+# Prompt injection
+python attacks/run_infer.py --model qwen7b-it-ppo --prompt-injection prompt_1 -o out.json
+
+# Web search backend
+python attacks/run_infer.py --model llama3b-it-ppo --prefill "<search>" --loop-mode once --search-backend web -o out.json
 ```
 
-Responses are saved to `all_responses/`.
+Run `python attacks/run_infer.py --help` for all options. Responses are saved to the specified output file.
 
 ## Evaluation
 
