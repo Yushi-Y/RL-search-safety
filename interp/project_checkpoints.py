@@ -25,10 +25,19 @@ DIRECTION_FILE = Path("/VData/kebl6672/ARL/interp_results/directions/search_quer
 HARMFUL_PATH = Path("/VData/kebl6672/ARL/refusal_datasets/harmful_combined.json")
 OUTPUT_DIR = Path("/VData/kebl6672/ARL/interp_results/checkpoint_projections")
 
+CKPT_BASE = Path("/VData/kebl6672/ARL/verl_checkpoints/search-r1-grpo-qwen2.5-7b-it-em/actor")
+
 MODELS = {
     "Qwen2.5-7B-IT": "Qwen/Qwen2.5-7B-Instruct",
-    "Search-R1 (RL)": "PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-it-em-grpo-v0.2",
 }
+
+# Add all local 7B checkpoints
+for step_dir in sorted(CKPT_BASE.glob("global_step_*"), key=lambda p: int(p.name.split("_")[-1])):
+    step_num = int(step_dir.name.split("_")[-1])
+    MODELS[f"Step {step_num}"] = str(step_dir)
+
+# Search-R1 last (fully trained RL model)
+MODELS["Search-R1 (RL)"] = "PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-it-em-grpo-v0.2"
 
 # Match extraction split: 600 sampled with seed 42 for direction extraction, rest held out
 EXTRACTION_SEED = 42
@@ -95,7 +104,7 @@ def main():
 
         tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         model = AutoModelForCausalLM.from_pretrained(
-            model_path, torch_dtype=torch.bfloat16, device_map="cuda", trust_remote_code=True,
+            model_path, torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True,
         )
         model.eval()
 
@@ -138,13 +147,13 @@ def main():
         torch.cuda.empty_cache()
 
     # Save results
-    output_file = OUTPUT_DIR / "qwen7b_it_vs_searchr1_search_query_projections.json"
+    output_file = OUTPUT_DIR / "qwen7b_all_checkpoints_search_query_projections.json"
     with open(output_file, "w") as f:
         json.dump(all_results, f, indent=2)
     print(f"\nSaved: {output_file}")
 
     # Plot: mean projection vs RL steps per layer
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(14, 6))
     ckpt_names = list(all_results.keys())
     x = range(len(ckpt_names))
 
@@ -154,15 +163,16 @@ def main():
         ax.errorbar(x, means, yerr=sems, label=key, marker='o', capsize=3)
 
     ax.set_xticks(x)
-    ax.set_xticklabels(ckpt_names, rotation=30, ha='right')
+    ax.set_xticklabels(ckpt_names, rotation=45, ha='right')
     ax.set_ylabel("Mean projection onto search_query direction")
-    ax.set_title("Qwen7B IT vs Search-R1: <search> projection onto search_query direction")
+    ax.set_title("Qwen7B: <search> projection across training checkpoints")
     ax.legend()
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plt.savefig(OUTPUT_DIR / "qwen7b_it_vs_searchr1_search_query_projection.png", dpi=300)
+    plot_file = OUTPUT_DIR / "qwen7b_all_checkpoints_search_query_projection.png"
+    plt.savefig(plot_file, dpi=300)
     plt.close()
-    print(f"Saved plot: {OUTPUT_DIR / 'qwen7b_it_vs_searchr1_search_query_projection.png'}")
+    print(f"Saved plot: {plot_file}")
 
 
 if __name__ == "__main__":
