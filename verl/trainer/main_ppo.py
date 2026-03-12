@@ -214,10 +214,10 @@ def main_task(config):
         harm_penalty_obj = HarmPenalty(
             direction_path=config.harm_penalty.direction_path,
             model_path=config.harm_penalty.model_path,
-            layer_idx=config.harm_penalty.get('layer', 22),
-            device=config.harm_penalty.get('device', 'cuda:0'),
+            layer_idx=config.harm_penalty.get('layer', 14),
+            device=config.harm_penalty.get('device', 'cpu'),
         )
-        harm_lambda = config.harm_penalty.get('lambda_coef', 0.001)
+        harm_lambda = config.harm_penalty.get('lambda_coef', 0.02)
         print(f"[HarmPenalty] Enabled with lambda={harm_lambda}")
 
     reward_fn = RewardManager(

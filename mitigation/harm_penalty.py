@@ -21,15 +21,20 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 class HarmPenalty:
     """Compute harmfulness penalty by projecting <search> hidden states onto d_harm."""
 
-    def __init__(self, direction_path, model_path, layer_idx=22, device="cuda:0"):
+    def __init__(self, direction_path, model_path, layer_idx=14, device="cpu"):
         """
         Args:
             direction_path: Path to direction JSON (from interp/extract/).
-                            File has keys like "layer_22" mapping to a list of floats.
+                            File has keys like "layer_14" mapping to a list of floats.
             model_path: HuggingFace model ID or local path for the frozen IT model.
             layer_idx: Which layer's direction to use.
-            device: Device for the frozen model.
+            device: Device for the frozen model (default: cpu, safe for Ray driver).
         """
+        # Resolve device — fall back to CPU if CUDA unavailable
+        if device != "cpu" and not torch.cuda.is_available():
+            print(f"[HarmPenalty] CUDA not available, falling back to CPU")
+            device = "cpu"
+
         # Load direction vector
         with open(direction_path) as f:
             directions = json.load(f)
@@ -42,14 +47,15 @@ class HarmPenalty:
         self.device = device
 
         # Load frozen model
-        print(f"[HarmPenalty] Loading frozen model: {model_path} (layer {layer_idx})")
+        print(f"[HarmPenalty] Loading frozen model: {model_path} (layer {layer_idx}) on {device}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=torch.bfloat16,
-            device_map=device,
-            trust_remote_code=True,
-        )
+        dtype = torch.float32 if device == "cpu" else torch.bfloat16
+        load_kwargs = dict(torch_dtype=dtype, trust_remote_code=True)
+        if device != "cpu":
+            load_kwargs["device_map"] = device
+        self.model = AutoModelForCausalLM.from_pretrained(model_path, **load_kwargs)
+        if device == "cpu":
+            self.model = self.model.to(device)
         self.model.eval()
         for p in self.model.parameters():
             p.requires_grad = False

@@ -21,7 +21,7 @@ WAND_PROJECT='Search-R1'
 # export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
 # export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-3b-it-em
 export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em
+export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-v2
 
 # set -x
 export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
