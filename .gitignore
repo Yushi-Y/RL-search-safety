@@ -131,3 +131,5 @@ htmlcov/
 # Misc
 # ==============================
 *.pdf
+mitigation/plan.md
+eval_results.json

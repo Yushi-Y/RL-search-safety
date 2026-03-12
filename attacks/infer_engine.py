@@ -387,11 +387,10 @@ class InferenceEngine:
             current_prompt += prefill
 
         while True:
-            # Apply per-iteration prefill for "loop_prefill" mode
+            # In loop_prefill, force prefill every iteration.
+            # In all other modes, current_prompt is used as-is.
             if loop_mode == "loop_prefill" and prefill:
                 iter_prompt = current_prompt + prefill
-            elif loop_mode == "standard" or loop_mode == "limited":
-                iter_prompt = current_prompt
             else:
                 iter_prompt = current_prompt
 

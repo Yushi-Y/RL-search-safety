@@ -3,31 +3,15 @@ export DATA_DIR='data/nq_search'
 
 WAND_PROJECT='Search-R1'
 
-# export BASE_MODEL='meta-llama/Llama-3.2-3B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.2-3b-em
-# export BASE_MODEL='meta-llama/Llama-3.2-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.2-3b-it-em
-# export BASE_MODEL='meta-llama/Llama-3.1-8B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.1-8b-em
-# export BASE_MODEL='meta-llama/Llama-3.1-8B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-llama3.1-8b-it-em
-
-# export BASE_MODEL='Qwen/Qwen2.5-3B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-3b-em
-# export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-3b-it-em
-# export BASE_MODEL='Qwen/Qwen2.5-7B'
-# export EXPERIMENT_NAME=nq-search-r1-grpo-qwen2.5-7b-em
-# export BASE_MODEL='Qwen/Qwen2.5-3B-Instruct'
-# export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-3b-it-em
 export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em
+export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation
 
-# set -x
-export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
+DIRECTION_PATH='interp_results/directions/search_query_direction_qwen7b/search_query_direction.json'
+DIRECTION_LAYER=14
+HARM_LAMBDA=0.02
+
+export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-
-# max_prompt_length = (config['training']['max_start_length'] + config['training']['max_response_length'] * (config['training']['max_turns'] - 1) + config['training']['max_obs_length'] * config['training']['max_turns'])
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=$DATA_DIR/train.parquet \
@@ -82,4 +66,10 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     max_turns=4 \
     retriever.url="http://127.0.0.1:8000/retrieve" \
     retriever.topk=3 \
+    +harm_penalty.enable=true \
+    +harm_penalty.direction_path=$DIRECTION_PATH \
+    +harm_penalty.model_path=$BASE_MODEL \
+    +harm_penalty.layer=$DIRECTION_LAYER \
+    +harm_penalty.lambda_coef=$HARM_LAMBDA \
+    +harm_penalty.device="cuda:0" \
     2>&1 | tee $EXPERIMENT_NAME.log

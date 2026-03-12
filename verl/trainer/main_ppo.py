@@ -33,10 +33,16 @@ class RewardManager():
     """The reward manager.
     """
 
-    def __init__(self, tokenizer, num_examine, format_score=0.) -> None:
+    def __init__(self, tokenizer, num_examine, format_score=0., harm_penalty=None, harm_lambda=0.0) -> None:
         self.tokenizer = tokenizer
         self.num_examine = num_examine  # the number of batches of decoded responses to print to the console
         self.format_score = format_score
+        self.harm_penalty = harm_penalty  # HarmPenalty instance or None
+        self.harm_lambda = harm_lambda
+        self._reset_penalty_stats()
+
+    def _reset_penalty_stats(self):
+        self._penalty_stats = {'penalties': [], 'projections': [], 'n_searches': 0, 'query_proj_pairs': []}
 
     def __call__(self, data: DataProto):
         """We will expand this function gradually based on the available datasets"""
@@ -46,8 +52,6 @@ class RewardManager():
             return data.batch['rm_scores']
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
-
-        # all_scores = []
 
         already_print_data_sources = {}
 
@@ -77,8 +81,21 @@ class RewardManager():
 
             score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
 
+            # Apply harmfulness penalty if enabled
+            if self.harm_penalty is not None and self.harm_lambda > 0:
+                pen_result = self.harm_penalty.compute_penalty(sequences_str)
+                penalty = pen_result['penalty']
+                score = score - self.harm_lambda * penalty
+                # Collect stats for logging
+                if pen_result['n_searches'] > 0:
+                    self._penalty_stats['penalties'].append(penalty)
+                    self._penalty_stats['projections'].extend(pen_result['projections'])
+                    self._penalty_stats['n_searches'] += pen_result['n_searches']
+                    # Collect (query, proj) pairs for top-k logging
+                    for q, proj in zip(pen_result['queries'], pen_result['projections']):
+                        self._penalty_stats['query_proj_pairs'].append((proj, q))
+
             reward_tensor[i, valid_response_length - 1] = score
-            # all_scores.append(score)
 
             if data_source not in already_print_data_sources:
                 already_print_data_sources[data_source] = 0
@@ -86,13 +103,22 @@ class RewardManager():
             if already_print_data_sources[data_source] < self.num_examine:
                 already_print_data_sources[data_source] += 1
                 print(sequences_str)
-        
-        # print(f"[DEBUG] all_scores: {all_scores}")
-        # print(f"[DEBUG] all_scores shape: {np.array(all_scores).shape}")
-        # print(f"[DEBUG] all_scores mean: {np.mean(all_scores)}")
-        # print(f"[DEBUG] all_scores max: {np.max(all_scores)}")
-        # print(f"[DEBUG] all_scores min: {np.min(all_scores)}")
-        # print(f"[DEBUG] all_scores std: {np.std(all_scores)}")
+
+        # Log penalty summary for this batch
+        if self.harm_penalty is not None and self._penalty_stats['n_searches'] > 0:
+            projs = self._penalty_stats['projections']
+            pens = self._penalty_stats['penalties']
+            n_positive = sum(1 for p in projs if p > 0)
+            print(f"[HarmPenalty] batch summary: {len(projs)} queries, "
+                  f"{n_positive}/{len(projs)} positive proj, "
+                  f"mean_proj={np.mean(projs):.2f}, "
+                  f"mean_penalty={np.mean(pens):.4f}, "
+                  f"max_proj={max(projs):.2f}")
+            # Log top-10 highest projection queries
+            top_pairs = sorted(self._penalty_stats['query_proj_pairs'], reverse=True)[:10]
+            for proj, q in top_pairs:
+                print(f"[HarmPenalty]   top proj={proj:.2f} query=\"{q[:120]}\"")
+            self._reset_penalty_stats()
 
         return reward_tensor
 
@@ -180,9 +206,26 @@ def main_task(config):
         role_worker_mapping[Role.RewardModel] = ray.remote(RewardModelWorker)
         mapping[Role.RewardModel] = global_pool_id
 
-    reward_fn = RewardManager(tokenizer=tokenizer, num_examine=0)
+    # Set up harmfulness penalty if configured
+    harm_penalty_obj = None
+    harm_lambda = 0.0
+    if getattr(config, 'harm_penalty', None) and config.harm_penalty.get('enable', False):
+        from mitigation.harm_penalty import HarmPenalty
+        harm_penalty_obj = HarmPenalty(
+            direction_path=config.harm_penalty.direction_path,
+            model_path=config.harm_penalty.model_path,
+            layer_idx=config.harm_penalty.get('layer', 22),
+            device=config.harm_penalty.get('device', 'cuda:0'),
+        )
+        harm_lambda = config.harm_penalty.get('lambda_coef', 0.001)
+        print(f"[HarmPenalty] Enabled with lambda={harm_lambda}")
 
-    # Note that we always use function-based RM for validation
+    reward_fn = RewardManager(
+        tokenizer=tokenizer, num_examine=0,
+        harm_penalty=harm_penalty_obj, harm_lambda=harm_lambda,
+    )
+
+    # Note that we always use function-based RM for validation (no penalty)
     val_reward_fn = RewardManager(tokenizer=tokenizer, num_examine=1)
 
     resource_pool_manager = ResourcePoolManager(resource_pool_spec=resource_pool_spec, mapping=mapping)
