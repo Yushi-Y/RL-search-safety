@@ -1,42 +1,60 @@
 """
-Safety-aware RL reward penalty. 
+Safety-aware RL reward penalty.
 
-Before RL training, extract search safety direction d_search from the IT model.
+Before RL training, extract the safety direction d_query from the IT model.
 During RL, for each generated search query, project the hidden state at the
-<search> token onto d_search and average the positive projections as penalty:
+<search> token onto d_query:
 
-    p_q = max(0, h_q . d_search)                       (Eq. 2) ReLU, negative projections get no penalty
-    r   = r_task - lambda * (1/K) * sum(p_qk)          (Eq. 3) K: the number of <search> queries in a single trajectory. 
+    p_q = max(0, h_q . d_query)                       (Eq. 2)
+    r   = r_task - lambda * p_q                        (Eq. 3)
 
-This regularises RL to keep search representations away from the harmful
-direction, without requiring harmful data in the training set.
+Runs on CPU by default so it does not consume GPU resources needed by
+the RL workers. Also supports GPU if available.
 """
 
 import torch
 import json
-import re
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 
 class HarmPenalty:
-    """Compute harmfulness penalty by projecting <search> hidden states onto d_harm."""
+    """Compute harmfulness penalty by projecting <search> hidden states onto d_query.
+
+    Call compute_penalty_batch() with a list of sequence strings and get back
+    a dict with per-sequence penalties.
+    """
 
     def __init__(self, direction_path, model_path, layer_idx=14, device="cpu"):
         """
         Args:
             direction_path: Path to direction JSON (from interp/extract/).
-                            File has keys like "layer_14" mapping to a list of floats.
             model_path: HuggingFace model ID or local path for the frozen IT model.
             layer_idx: Which layer's direction to use.
-            device: Device for the frozen model (default: cpu, safe for Ray driver).
+            device: "cpu" (default), "cuda:0", "cuda:1", or "auto".
         """
-        # Check CUDA availability
+        self.layer_idx = layer_idx
+
+        # Use multiple CPU threads for faster inference
+        if device == "cpu":
+            torch.set_num_threads(64)
+
+        # Resolve device and dtype
+        use_gpu = (device != "cpu") and torch.cuda.is_available()
         if device != "cpu" and not torch.cuda.is_available():
             print(f"[HarmPenalty] CUDA not available, falling back to CPU")
             device = "cpu"
 
-        self.layer_idx = layer_idx
-        self.use_gpu = (device != "cpu")
+        if use_gpu and device == "auto":
+            device_map = "auto"
+            self.device = None  # resolved after model loads
+        elif use_gpu:
+            device_map = {"": torch.device(device)}
+            self.device = torch.device(device)
+        else:
+            device_map = None
+            self.device = torch.device("cpu")
+
+        model_dtype = torch.bfloat16 if use_gpu else torch.float32
 
         # Load direction vector
         with open(direction_path) as f:
@@ -45,93 +63,158 @@ class HarmPenalty:
         if key not in directions:
             available = list(directions.keys())
             raise ValueError(f"Layer {layer_idx} not in direction file. Available: {available}")
-        # Direction stays on CPU; will match hidden states after .float() + .cpu()
-        self.direction = torch.tensor(directions[key], dtype=torch.float32)
+        self._direction_list = directions[key]
 
         # Load frozen model
-        print(f"[HarmPenalty] Loading frozen model: {model_path} (layer {layer_idx}) on {device}")
+        print(f"[HarmPenalty] Loading frozen model: {model_path} (layer {layer_idx}) device={device}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        if self.use_gpu:
-            load_kwargs = dict(torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True)
-        else:
-            load_kwargs = dict(torch_dtype=torch.float32, trust_remote_code=True)
+        if self.tokenizer.pad_token is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        load_kwargs = dict(torch_dtype=model_dtype, trust_remote_code=True)
+        if device_map is not None:
+            load_kwargs["device_map"] = device_map
         self.model = AutoModelForCausalLM.from_pretrained(model_path, **load_kwargs)
-        if not self.use_gpu:
-            self.model = self.model.to("cpu")
         self.model.eval()
         for p in self.model.parameters():
             p.requires_grad = False
 
-        # Verify device placement
-        first_param_device = next(self.model.parameters()).device
-        print(f"[HarmPenalty] Model loaded. First param device: {first_param_device}")
-        if self.use_gpu and first_param_device.type != 'cuda':
-            raise RuntimeError(f"[HarmPenalty] Expected model on CUDA but got {first_param_device}. GPU init failed.")
+        # Resolve device for GPU auto mode
+        if use_gpu and self.device is None:
+            hm = self.model.hf_device_map
+            target_dev = None
+            for module_name, dev in hm.items():
+                if f"layers.{layer_idx}" in module_name:
+                    target_dev = torch.device(f"cuda:{dev}" if isinstance(dev, int) else dev)
+                    break
+            if target_dev is None:
+                target_dev = next(self.model.parameters()).device
+            self.device = target_dev
+            print(f"[HarmPenalty] Auto device map — layer {layer_idx} output on {self.device}")
+
+        # Place direction vector on resolved device
+        self.direction = torch.tensor(
+            self._direction_list, dtype=model_dtype, device=self.device
+        )
+        del self._direction_list
+
+        # input_device: where input_ids must go
+        self.input_device = next(self.model.parameters()).device
+        print(f"[HarmPenalty] Model loaded. Input device: {self.input_device}, "
+              f"layer {layer_idx} device: {self.device}")
 
         # Token IDs for <search>
         self.search_token_ids = self.tokenizer.encode("<search>", add_special_tokens=False)
         print(f"[HarmPenalty] Ready. <search> token IDs: {self.search_token_ids}")
 
-    def _find_search_positions(self, token_ids):
-        """Find positions of <search> in a list of token IDs.
-        Returns list of indices pointing to the last token of each <search>."""
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _find_search_position(self, token_ids, skip=1):
+        """Return index of the last token of a <search> occurrence, or -1.
+
+        Args:
+            token_ids: list of token IDs.
+            skip: number of occurrences to skip (default 1 to skip prompt template).
+        """
         pat = self.search_token_ids
         n = len(pat)
-        positions = []
+        count = 0
         for i in range(len(token_ids) - n + 1):
-            if token_ids[i:i + n] == pat:
-                positions.append(i + n - 1)
-        return positions
+            if token_ids[i : i + n] == pat:
+                if count == skip:
+                    return i + n - 1
+                count += 1
+        return -1
 
-    def _extract_search_queries(self, sequence_str):
-        """Extract search query strings from <search>...</search> pairs."""
-        return re.findall(r'<search>(.*?)</search>', sequence_str, re.DOTALL)
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
 
-    def compute_penalty(self, sequence_str):
-        """Compute mean harmfulness penalty across all <search> queries (Eq. 2-3).
+    def compute_penalty_batch(self, sequences):
+        """Compute harmfulness penalty for a batch of sequences.
+
+        Args:
+            sequences: list[str] — full decoded sequences (prompt + response).
 
         Returns:
-            dict with keys:
-                'penalty': float >= 0. Average of max(0, h_q . d_search) over K queries.
-                'projections': list of raw projection values (before max(0, .)).
-                'queries': list of search query strings.
-                'n_searches': number of <search> tokens found.
+            dict with:
+                'penalties':    list[float] of length len(sequences), >= 0 each.
+                'projections':  list[float] raw projection values (before ReLU).
+                'has_search':   list[bool]  whether each sequence had <search>.
         """
-        result = {'penalty': 0.0, 'projections': [], 'queries': [], 'n_searches': 0}
+        batch_size = len(sequences)
+        penalties = [0.0] * batch_size
+        projections = [0.0] * batch_size
+        has_search = [False] * batch_size
 
-        if "<search>" not in sequence_str:
-            return result
+        # --- Step 1: tokenize all sequences, find first <search> position ---
+        all_token_ids = []
+        search_positions = []
+        seq_indices = []
 
-        # Tokenize and find <search> positions
-        token_ids = self.tokenizer.encode(sequence_str, add_special_tokens=False)
-        search_positions = self._find_search_positions(token_ids)
-        if not search_positions:
-            return result
+        for i, seq in enumerate(sequences):
+            if "<search>" not in seq:
+                continue
+            tids = self.tokenizer.encode(seq, add_special_tokens=False)
+            pos = self._find_search_position(tids)
+            if pos < 0:
+                continue
+            all_token_ids.append(tids[: pos + 1])
+            search_positions.append(pos)
+            seq_indices.append(i)
+            has_search[i] = True
 
-        # Forward pass through frozen model
-        if self.use_gpu:
-            first_device = next(self.model.parameters()).device
-            input_ids = torch.tensor([token_ids], device=first_device)
-        else:
-            input_ids = torch.tensor([token_ids], device="cpu")
+        if not all_token_ids:
+            return {"penalties": penalties, "projections": projections, "has_search": has_search}
+
+        # --- Step 2: pad into a batch tensor ---
+        max_len = max(len(t) for t in all_token_ids)
+        pad_id = self.tokenizer.pad_token_id
+
+        input_ids = torch.full(
+            (len(all_token_ids), max_len), pad_id,
+            dtype=torch.long, device=self.input_device,
+        )
+        attention_mask = torch.zeros(
+            (len(all_token_ids), max_len),
+            dtype=torch.long, device=self.input_device,
+        )
+        for j, tids in enumerate(all_token_ids):
+            length = len(tids)
+            input_ids[j, :length] = torch.tensor(tids, dtype=torch.long, device=self.input_device)
+            attention_mask[j, :length] = 1
+
+        # --- Step 3: single batched forward pass ---
         with torch.no_grad():
-            outputs = self.model(input_ids, output_hidden_states=True, return_dict=True)
+            outputs = self.model(
+                input_ids=input_ids,
+                attention_mask=attention_mask,
+                output_hidden_states=True,
+                return_dict=True,
+            )
 
-        hidden_states = outputs.hidden_states[self.layer_idx][0]  # [seq_len, hidden_dim]
+        hidden_states = outputs.hidden_states[self.layer_idx]
 
-        # p_q = max(0, h_q . d_search) for each query, then average (Eq. 2-3)
-        queries = self._extract_search_queries(sequence_str)
-        projections = []
-        penalties = []
-        # compute penalty
-        for pos in search_positions:
-            h = hidden_states[pos].float().cpu()
-            proj = torch.dot(h, self.direction).item()
-            projections.append(proj)
-            penalties.append(max(0.0, proj))
+        # --- Step 4: gather hidden states at <search> positions, project ---
+        hs_device = hidden_states.device
+        pos_tensor = torch.tensor(
+            search_positions, dtype=torch.long, device=hs_device
+        ).unsqueeze(-1).unsqueeze(-1).expand(-1, 1, hidden_states.size(-1))
 
-        result['penalty'] = sum(penalties) / len(penalties)
-        result['projections'] = projections
-        result['queries'] = queries[:len(projections)]  # align with positions found
-        result['n_searches'] = len(search_positions)
-        return result
+        h_search = hidden_states.gather(1, pos_tensor).squeeze(1)
+
+        direction = self.direction.to(hs_device)
+        raw_proj = (h_search * direction.unsqueeze(0)).sum(dim=-1)
+        relu_proj = torch.clamp(raw_proj, min=0.0)
+
+        # --- Step 5: write results back ---
+        raw_proj_cpu = raw_proj.float().cpu().tolist()
+        relu_proj_cpu = relu_proj.float().cpu().tolist()
+
+        for j, idx in enumerate(seq_indices):
+            projections[idx] = raw_proj_cpu[j]
+            penalties[idx] = relu_proj_cpu[j]
+
+        return {"penalties": penalties, "projections": projections, "has_search": has_search}

@@ -10,7 +10,7 @@ import os
 
 # Configuration variables
 DATASET_NAME = "ai-safety-institute/AgentHarm"
-OUTPUT_FILE = "agentharm_responses/qwen7b_ppo_web/qwen_search_web_prefill_1_once.json"
+OUTPUT_FILE = "agentharm_responses/qwen7b_ppo_web/qwen_search_web_prefill_1_once_mitigation_step25.json"
 
 # SerpAPI Configuration
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")  # Set your SerpAPI key as environment variable
@@ -39,7 +39,7 @@ rate_tracker = RateLimitTracker()
 
 
 # Model ID and device setup
-model_id = "PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-it-em-ppo"
+model_id = "verl_checkpoints/search-r1-grpo-qwen2.5-7b-it-em-mitigation/actor/global_step_25"
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 curr_eos = [151645, 151643] # for Qwen2.5 series models

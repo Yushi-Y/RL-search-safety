@@ -60,7 +60,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=15 \
-    trainer.total_training_steps=105 \
+    trainer.total_training_steps=26 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=verl_checkpoints/$EXPERIMENT_NAME \
     max_turns=4 \
@@ -71,5 +71,5 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     +harm_penalty.model_path=$BASE_MODEL \
     +harm_penalty.layer=$DIRECTION_LAYER \
     +harm_penalty.lambda_coef=$HARM_LAMBDA \
-    +harm_penalty.device="cuda:0" \
+    +harm_penalty.device="cpu" \
     2>&1 | tee $EXPERIMENT_NAME.log

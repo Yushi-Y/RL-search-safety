@@ -39,10 +39,6 @@ class RewardManager():
         self.format_score = format_score
         self.harm_penalty = harm_penalty  # HarmPenalty instance or None
         self.harm_lambda = harm_lambda
-        self._reset_penalty_stats()
-
-    def _reset_penalty_stats(self):
-        self._penalty_stats = {'penalties': [], 'projections': [], 'n_searches': 0, 'query_proj_pairs': []}
 
     def __call__(self, data: DataProto):
         """We will expand this function gradually based on the available datasets"""
@@ -53,13 +49,16 @@ class RewardManager():
 
         reward_tensor = torch.zeros_like(data.batch['responses'], dtype=torch.float32)
 
+        # --- First pass: decode all sequences and compute task scores ---
+        all_sequences_str = []
+        all_scores = []
+        all_valid_response_lengths = []
         already_print_data_sources = {}
 
         for i in range(len(data)):
             data_item = data[i]  # DataProtoItem
 
             prompt_ids = data_item.batch['prompts']
-
             prompt_length = prompt_ids.shape[-1]
 
             valid_prompt_length = data_item.batch['attention_mask'][:prompt_length].sum()
@@ -74,51 +73,59 @@ class RewardManager():
             sequences_str = self.tokenizer.decode(sequences)
 
             ground_truth = data_item.non_tensor_batch['reward_model']['ground_truth']
-
-            # select rm_score
             data_source = data_item.non_tensor_batch['data_source']
             compute_score_fn = _select_rm_score_fn(data_source)
 
             score = compute_score_fn(solution_str=sequences_str, ground_truth=ground_truth, format_score=self.format_score)
 
-            # Apply harmfulness penalty if enabled
-            if self.harm_penalty is not None and self.harm_lambda > 0:
-                pen_result = self.harm_penalty.compute_penalty(sequences_str)
-                penalty = pen_result['penalty']
-                score = score - self.harm_lambda * penalty
-                # Collect stats for logging
-                if pen_result['n_searches'] > 0:
-                    self._penalty_stats['penalties'].append(penalty)
-                    self._penalty_stats['projections'].extend(pen_result['projections'])
-                    self._penalty_stats['n_searches'] += pen_result['n_searches']
-                    # Collect (query, proj) pairs for top-k logging
-                    for q, proj in zip(pen_result['queries'], pen_result['projections']):
-                        self._penalty_stats['query_proj_pairs'].append((proj, q))
-
-            reward_tensor[i, valid_response_length - 1] = score
+            all_sequences_str.append(sequences_str)
+            all_scores.append(score)
+            all_valid_response_lengths.append(valid_response_length)
 
             if data_source not in already_print_data_sources:
                 already_print_data_sources[data_source] = 0
-
             if already_print_data_sources[data_source] < self.num_examine:
                 already_print_data_sources[data_source] += 1
                 print(sequences_str)
 
-        # Log penalty summary for this batch
-        if self.harm_penalty is not None and self._penalty_stats['n_searches'] > 0:
-            projs = self._penalty_stats['projections']
-            pens = self._penalty_stats['penalties']
-            n_positive = sum(1 for p in projs if p > 0)
-            print(f"[HarmPenalty] batch summary: {len(projs)} queries, "
-                  f"{n_positive}/{len(projs)} positive proj, "
-                  f"mean_proj={np.mean(projs):.2f}, "
-                  f"mean_penalty={np.mean(pens):.4f}, "
-                  f"max_proj={max(projs):.2f}")
-            # Log top-10 highest projection queries
-            top_pairs = sorted(self._penalty_stats['query_proj_pairs'], reverse=True)[:10]
-            for proj, q in top_pairs:
-                print(f"[HarmPenalty]   top proj={proj:.2f} query=\"{q[:120]}\"")
-            self._reset_penalty_stats()
+        # --- Batched harm penalty (single forward pass) ---
+        if self.harm_penalty is not None and self.harm_lambda > 0:
+            import time as _time
+            n_search = sum(1 for s in all_sequences_str if '<search>' in s)
+            print(f"[HarmPenalty] Computing penalty for {len(all_sequences_str)} sequences ({n_search} with <search>)...")
+            _t0 = _time.time()
+            pen_result = self.harm_penalty.compute_penalty_batch(all_sequences_str)
+            print(f"[HarmPenalty] Done in {_time.time() - _t0:.1f}s")
+            for i in range(len(data)):
+                if pen_result['has_search'][i]:
+                    all_scores[i] -= self.harm_lambda * pen_result['penalties'][i]
+
+            # Log penalty summary
+            search_indices = [i for i, h in enumerate(pen_result['has_search']) if h]
+            if search_indices:
+                projs = [pen_result['projections'][i] for i in search_indices]
+                pens = [pen_result['penalties'][i] for i in search_indices]
+                n_positive = sum(1 for p in projs if p > 0)
+                print(f"[HarmPenalty] batch summary: {len(projs)} queries, "
+                      f"{n_positive}/{len(projs)} positive proj, "
+                      f"mean_proj={np.mean(projs):.2f}, "
+                      f"mean_penalty={np.mean(pens):.4f}, "
+                      f"max_proj={max(projs):.2f}")
+                # Log top-10 highest projection queries
+                top_pairs = sorted(
+                    [(pen_result['projections'][i], all_sequences_str[i]) for i in search_indices],
+                    reverse=True,
+                )[:10]
+                import re as _re
+                for proj, q in top_pairs:
+                    # Extract first generated search query (skip prompt template)
+                    matches = _re.findall(r'<search>(.*?)</search>', q, _re.DOTALL)
+                    q_text = matches[1].strip()[:120] if len(matches) > 1 else (matches[0].strip()[:120] if matches else q[:120])
+                    print(f"[HarmPenalty]   top proj={proj:.2f} query=\"{q_text}\"")
+
+        # --- Write scores into reward tensor ---
+        for i in range(len(data)):
+            reward_tensor[i, all_valid_response_lengths[i] - 1] = all_scores[i]
 
         return reward_tensor
 
@@ -206,25 +213,20 @@ def main_task(config):
         role_worker_mapping[Role.RewardModel] = ray.remote(RewardModelWorker)
         mapping[Role.RewardModel] = global_pool_id
 
-    # Set up harmfulness penalty if configured
+    # Set up harmfulness penalty if configured (CPU by default to avoid stealing GPUs from RL)
     harm_penalty_obj = None
     harm_lambda = 0.0
     if getattr(config, 'harm_penalty', None) and config.harm_penalty.get('enable', False):
-        # Expose GPUs to this process before any torch.cuda call
-        harm_device = config.harm_penalty.get('device', 'cpu')
-        if harm_device != 'cpu':
-            import os
-            os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
-            print(f"[HarmPenalty] Set CUDA_VISIBLE_DEVICES=0,1 for frozen model")
         from mitigation.harm_penalty import HarmPenalty
+        harm_device = config.harm_penalty.get('device', 'cpu')
         harm_penalty_obj = HarmPenalty(
             direction_path=config.harm_penalty.direction_path,
             model_path=config.harm_penalty.model_path,
             layer_idx=config.harm_penalty.get('layer', 14),
-            device=config.harm_penalty.get('device', 'cpu'),
+            device=harm_device,
         )
         harm_lambda = config.harm_penalty.get('lambda_coef', 0.02)
-        print(f"[HarmPenalty] Enabled with lambda={harm_lambda}")
+        print(f"[HarmPenalty] Enabled on {harm_device} with lambda={harm_lambda}")
 
     reward_fn = RewardManager(
         tokenizer=tokenizer, num_examine=0,
