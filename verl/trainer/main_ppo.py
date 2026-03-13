@@ -210,6 +210,12 @@ def main_task(config):
     harm_penalty_obj = None
     harm_lambda = 0.0
     if getattr(config, 'harm_penalty', None) and config.harm_penalty.get('enable', False):
+        # Expose GPUs to this process before any torch.cuda call
+        harm_device = config.harm_penalty.get('device', 'cpu')
+        if harm_device != 'cpu':
+            import os
+            os.environ['CUDA_VISIBLE_DEVICES'] = '0,1'
+            print(f"[HarmPenalty] Set CUDA_VISIBLE_DEVICES=0,1 for frozen model")
         from mitigation.harm_penalty import HarmPenalty
         harm_penalty_obj = HarmPenalty(
             direction_path=config.harm_penalty.direction_path,

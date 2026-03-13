@@ -30,10 +30,13 @@ class HarmPenalty:
             layer_idx: Which layer's direction to use.
             device: Device for the frozen model (default: cpu, safe for Ray driver).
         """
-        # Resolve device — fall back to CPU if CUDA unavailable
+        # Check CUDA availability
         if device != "cpu" and not torch.cuda.is_available():
             print(f"[HarmPenalty] CUDA not available, falling back to CPU")
             device = "cpu"
+
+        self.layer_idx = layer_idx
+        self.use_gpu = (device != "cpu")
 
         # Load direction vector
         with open(direction_path) as f:
@@ -42,23 +45,28 @@ class HarmPenalty:
         if key not in directions:
             available = list(directions.keys())
             raise ValueError(f"Layer {layer_idx} not in direction file. Available: {available}")
-        self.direction = torch.tensor(directions[key], dtype=torch.float32, device=device)
-        self.layer_idx = layer_idx
-        self.device = device
+        # Direction stays on CPU; will match hidden states after .float() + .cpu()
+        self.direction = torch.tensor(directions[key], dtype=torch.float32)
 
         # Load frozen model
         print(f"[HarmPenalty] Loading frozen model: {model_path} (layer {layer_idx}) on {device}")
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
-        dtype = torch.float32 if device == "cpu" else torch.bfloat16
-        load_kwargs = dict(torch_dtype=dtype, trust_remote_code=True)
-        if device != "cpu":
-            load_kwargs["device_map"] = device
+        if self.use_gpu:
+            load_kwargs = dict(torch_dtype=torch.bfloat16, device_map="auto", trust_remote_code=True)
+        else:
+            load_kwargs = dict(torch_dtype=torch.float32, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(model_path, **load_kwargs)
-        if device == "cpu":
-            self.model = self.model.to(device)
+        if not self.use_gpu:
+            self.model = self.model.to("cpu")
         self.model.eval()
         for p in self.model.parameters():
             p.requires_grad = False
+
+        # Verify device placement
+        first_param_device = next(self.model.parameters()).device
+        print(f"[HarmPenalty] Model loaded. First param device: {first_param_device}")
+        if self.use_gpu and first_param_device.type != 'cuda':
+            raise RuntimeError(f"[HarmPenalty] Expected model on CUDA but got {first_param_device}. GPU init failed.")
 
         # Token IDs for <search>
         self.search_token_ids = self.tokenizer.encode("<search>", add_special_tokens=False)
@@ -101,7 +109,11 @@ class HarmPenalty:
             return result
 
         # Forward pass through frozen model
-        input_ids = torch.tensor([token_ids], device=self.device)
+        if self.use_gpu:
+            first_device = next(self.model.parameters()).device
+            input_ids = torch.tensor([token_ids], device=first_device)
+        else:
+            input_ids = torch.tensor([token_ids], device="cpu")
         with torch.no_grad():
             outputs = self.model(input_ids, output_hidden_states=True, return_dict=True)
 
@@ -113,7 +125,7 @@ class HarmPenalty:
         penalties = []
         # compute penalty
         for pos in search_positions:
-            h = hidden_states[pos].float()
+            h = hidden_states[pos].float().cpu()
             proj = torch.dot(h, self.direction).item()
             projections.append(proj)
             penalties.append(max(0.0, proj))
