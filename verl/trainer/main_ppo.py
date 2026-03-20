@@ -118,21 +118,23 @@ class RewardManager():
                       f"mean_proj={np.mean(projs):.2f}, "
                       f"mean_penalty={np.mean(pens):.4f}, "
                       f"max_proj={max(projs):.2f}")
-                # Log top-10 highest projection queries
-                top_pairs = sorted(
+                # Log top-10 highest and lowest projection queries
+                import re as _re
+                all_pairs = sorted(
                     [(pen_result['projections'][i], all_sequences_str[i]) for i in search_indices],
                     reverse=True,
-                )[:10]
-                import re as _re
-                for rank, (proj, q) in enumerate(top_pairs):
-                    # Extract first generated search query (skip system prompt's <search> query </search>)
-                    matches = _re.findall(r'<search>(.*?)</search>', q, _re.DOTALL)
-                    q_text = matches[1].strip()[:120] if len(matches) > 1 else (matches[0].strip()[:120] if matches else q[-120:])
-                    print(f"[HarmPenalty]   top proj={proj:.2f} query=\"{q_text}\"")
-                    if rank < 3:
-                        assistant_split = q.split('<|im_start|>assistant\n', 1)
-                        full_resp = assistant_split[1][:500] if len(assistant_split) > 1 else q[-500:]
-                        print(f"[HarmPenalty]   full_response: {full_resp}")
+                )
+                for label, pairs in [("top positive", all_pairs[:10]), ("top negative", all_pairs[-10:])]:
+                    print(f"[HarmPenalty] --- {label} ---")
+                    for rank, (proj, q) in enumerate(pairs):
+                        # Extract first generated search query (skip system prompt's <search> query </search>)
+                        matches = _re.findall(r'<search>(.*?)</search>', q, _re.DOTALL)
+                        q_text = matches[1].strip()[:120] if len(matches) > 1 else (matches[0].strip()[:120] if matches else q[-120:])
+                        print(f"[HarmPenalty]   proj={proj:.2f} query=\"{q_text}\"")
+                        if rank < 3:
+                            assistant_split = q.split('<|im_start|>assistant\n', 1)
+                            full_resp = assistant_split[1][:500] if len(assistant_split) > 1 else q[-500:]
+                            print(f"[HarmPenalty]   full_response: {full_resp}")
 
         # --- Write scores into reward tensor ---
         for i in range(len(data)):
