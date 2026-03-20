@@ -22,9 +22,16 @@ from verl.trainer.ppo.ray_trainer import RayPPOTrainer
 import re
 import numpy as np
 
+def _zero_score(solution_str, ground_truth, **kwargs):
+    """Return 0 for data sources with no task reward (e.g. harmful-only ablation)."""
+    return 0.0
+
+
 def _select_rm_score_fn(data_source):
     if data_source in ['nq', 'triviaqa', 'popqa', 'hotpotqa', '2wikimultihopqa', 'musique', 'bamboogle']:
         return qa_em.compute_score_em
+    elif data_source == 'harmful':
+        return _zero_score
     else:
         raise NotImplementedError
 
@@ -117,11 +124,15 @@ class RewardManager():
                     reverse=True,
                 )[:10]
                 import re as _re
-                for proj, q in top_pairs:
-                    # Extract first generated search query (skip prompt template)
+                for rank, (proj, q) in enumerate(top_pairs):
+                    # Extract first generated search query (skip system prompt's <search> query </search>)
                     matches = _re.findall(r'<search>(.*?)</search>', q, _re.DOTALL)
-                    q_text = matches[1].strip()[:120] if len(matches) > 1 else (matches[0].strip()[:120] if matches else q[:120])
+                    q_text = matches[1].strip()[:120] if len(matches) > 1 else (matches[0].strip()[:120] if matches else q[-120:])
                     print(f"[HarmPenalty]   top proj={proj:.2f} query=\"{q_text}\"")
+                    if rank < 3:
+                        assistant_split = q.split('<|im_start|>assistant\n', 1)
+                        full_resp = assistant_split[1][:500] if len(assistant_split) > 1 else q[-500:]
+                        print(f"[HarmPenalty]   full_response: {full_resp}")
 
         # --- Write scores into reward tensor ---
         for i in range(len(data)):
@@ -224,6 +235,7 @@ def main_task(config):
             model_path=config.harm_penalty.model_path,
             layer_idx=config.harm_penalty.get('layer', 14),
             device=harm_device,
+            use_relu=config.harm_penalty.get('use_relu', True),
         )
         harm_lambda = config.harm_penalty.get('lambda_coef', 0.02)
         print(f"[HarmPenalty] Enabled on {harm_device} with lambda={harm_lambda}")

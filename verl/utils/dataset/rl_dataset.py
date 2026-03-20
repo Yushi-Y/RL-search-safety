@@ -125,7 +125,9 @@ class RLHFDataset(Dataset):
 
         chat = row_dict.pop(self.prompt_key)
 
-        if self.tokenizer.chat_template:
+        if isinstance(chat, str):
+            prompt_with_chat_template = chat
+        elif self.tokenizer.chat_template:
             prompt_with_chat_template = self.tokenizer.apply_chat_template(chat, add_generation_prompt=True, tokenize=False)
         else:
             prompt_with_chat_template = chat[0]['content']

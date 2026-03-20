@@ -1,0 +1,18 @@
+{
+  "global_step_25": {
+    "step": 25,
+    "model": "global_step_25"
+  },
+  "global_step_50": {
+    "step": 50,
+    "model": "global_step_50"
+  },
+  "global_step_75": {
+    "step": 75,
+    "model": "global_step_75"
+  },
+  "global_step_100": {
+    "step": 100,
+    "model": "global_step_100"
+  }
+}

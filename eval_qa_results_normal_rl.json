@@ -1,0 +1,22 @@
+{
+  "Qwen2.5-7B-Instruct": {
+    "step": 0,
+    "model": "Qwen2.5-7B-Instruct",
+    "val/test_score/nq": 0.28547671840354766
+  },
+  "global_step_25": {
+    "step": 25,
+    "model": "global_step_25",
+    "val/test_score/nq": 0.32954545454545453
+  },
+  "global_step_50": {
+    "step": 50,
+    "model": "global_step_50",
+    "val/test_score/nq": 0.34672949002217296
+  },
+  "global_step_75": {
+    "step": 75,
+    "model": "global_step_75",
+    "val/test_score/nq": 0.3594789356984479
+  }
+}

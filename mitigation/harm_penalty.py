@@ -24,7 +24,7 @@ class HarmPenalty:
     a dict with per-sequence penalties.
     """
 
-    def __init__(self, direction_path, model_path, layer_idx=14, device="cpu"):
+    def __init__(self, direction_path, model_path, layer_idx=14, device="cpu", use_relu=True):
         """
         Args:
             direction_path: Path to direction JSON (from interp/extract/).
@@ -33,6 +33,7 @@ class HarmPenalty:
             device: "cpu" (default), "cuda:0", "cuda:1", or "auto".
         """
         self.layer_idx = layer_idx
+        self.use_relu = use_relu
 
         # Use multiple CPU threads for faster inference
         if device == "cpu":
@@ -92,10 +93,12 @@ class HarmPenalty:
             self.device = target_dev
             print(f"[HarmPenalty] Auto device map — layer {layer_idx} output on {self.device}")
 
-        # Place direction vector on resolved device
+        # Place direction vector on resolved device, normalised to unit length
+        # so projections measure alignment (cosine-like) and λ controls scale
         self.direction = torch.tensor(
             self._direction_list, dtype=model_dtype, device=self.device
         )
+        self.direction = self.direction / self.direction.norm()
         del self._direction_list
 
         # input_device: where input_ids must go
@@ -111,12 +114,13 @@ class HarmPenalty:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _find_search_position(self, token_ids, skip=1):
+    def _find_search_position(self, token_ids, skip=0):
         """Return index of the last token of a <search> occurrence, or -1.
 
         Args:
             token_ids: list of token IDs.
-            skip: number of occurrences to skip (default 1 to skip prompt template).
+            skip: number of occurrences to skip (default 0; template <search>
+                  doesn't tokenize to the same IDs so no skip needed).
         """
         pat = self.search_token_ids
         n = len(pat)
@@ -204,17 +208,21 @@ class HarmPenalty:
         ).unsqueeze(-1).unsqueeze(-1).expand(-1, 1, hidden_states.size(-1))
 
         h_search = hidden_states.gather(1, pos_tensor).squeeze(1)
+        h_search = h_search / h_search.norm(dim=-1, keepdim=True).clamp(min=1e-8)
 
         direction = self.direction.to(hs_device)
         raw_proj = (h_search * direction.unsqueeze(0)).sum(dim=-1)
-        relu_proj = torch.clamp(raw_proj, min=0.0)
+        if self.use_relu:
+            penalty_proj = torch.clamp(raw_proj, min=0.0)
+        else:
+            penalty_proj = raw_proj
 
         # --- Step 5: write results back ---
         raw_proj_cpu = raw_proj.float().cpu().tolist()
-        relu_proj_cpu = relu_proj.float().cpu().tolist()
+        penalty_proj_cpu = penalty_proj.float().cpu().tolist()
 
         for j, idx in enumerate(seq_indices):
             projections[idx] = raw_proj_cpu[j]
-            penalties[idx] = relu_proj_cpu[j]
+            penalties[idx] = penalty_proj_cpu[j]
 
         return {"penalties": penalties, "projections": projections, "has_search": has_search}

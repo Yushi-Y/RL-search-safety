@@ -1,20 +1,15 @@
 #!/bin/bash
-# Evaluate QA (EM) on saved VERL checkpoints using val_only mode.
-# Usage: bash eval_checkpoints.sh
-
-export CUDA_VISIBLE_DEVICES=0,1
+# Evaluate mitigation checkpoints steps 75,100 on GPUs 2,3
+export CUDA_VISIBLE_DEVICES=2,3
 export DATA_DIR='data/nq_search'
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-CKPT_BASE="verl_checkpoints/search-r1-grpo-qwen2.5-7b-it-em/actor"
-CHECKPOINTS=("global_step_25" "global_step_50" "global_step_75")
+CKPT_BASE="verl_checkpoints/search-r1-grpo-qwen2.5-7b-it-em-mitigation/actor"
+CHECKPOINTS=("global_step_75" "global_step_100")
 
-# Also eval the base IT model as step 0
-ALL_MODELS=("Qwen/Qwen2.5-7B-Instruct" "${CHECKPOINTS[@]/#/$CKPT_BASE/}")
-
-for MODEL_PATH in "${ALL_MODELS[@]}"; do
-    STEP_NAME=$(basename "$MODEL_PATH")
+for STEP_NAME in "${CHECKPOINTS[@]}"; do
+    MODEL_PATH="$CKPT_BASE/$STEP_NAME"
     echo "============================================"
     echo "Evaluating: $MODEL_PATH ($STEP_NAME)"
     echo "============================================"
@@ -64,44 +59,14 @@ for MODEL_PATH in "${ALL_MODELS[@]}"; do
         trainer.save_freq=25 \
         trainer.test_freq=-1 \
         trainer.project_name=Search-R1 \
-        trainer.experiment_name=eval-$STEP_NAME \
+        trainer.experiment_name=eval-mitigation-$STEP_NAME \
         trainer.total_epochs=15 \
         trainer.total_training_steps=100 \
-        trainer.default_local_dir=verl_checkpoints/eval-$STEP_NAME \
+        trainer.default_local_dir=verl_checkpoints/eval-mitigation-$STEP_NAME \
         max_turns=4 \
         retriever.url="http://127.0.0.1:8000/retrieve" \
         retriever.topk=3 \
-        2>&1 | tee eval-$STEP_NAME.log
+        2>&1 | tee eval-mitigation-$STEP_NAME.log
 
     echo ""
 done
-
-# Collect results from log files into a single JSON
-python3 -c "
-import re, json
-
-results = {}
-models = [
-    ('Qwen2.5-7B-Instruct', 'eval-Qwen2.5-7B-Instruct.log', 0),
-    ('global_step_25', 'eval-global_step_25.log', 25),
-    ('global_step_50', 'eval-global_step_50.log', 50),
-    ('global_step_75', 'eval-global_step_75.log', 75),
-]
-for name, logfile, step in models:
-    try:
-        with open(logfile) as f:
-            text = f.read()
-        # Match val/test_score/nq or similar keys with float values
-        scores = re.findall(r\"'(val/test_score/\w+)':\s*([\d.]+)\", text)
-        entry = {'step': step, 'model': name}
-        for key, val in scores:
-            entry[key] = float(val)
-        results[name] = entry
-    except FileNotFoundError:
-        results[name] = {'step': step, 'model': name, 'error': 'log not found'}
-
-with open('eval_results.json', 'w') as f:
-    json.dump(results, f, indent=2)
-print(json.dumps(results, indent=2))
-print('Saved to eval_results.json')
-"
