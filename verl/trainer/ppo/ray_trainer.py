@@ -454,7 +454,7 @@ class RayPPOTrainer(object):
             topk = self.config.retriever.topk,
         )
 
-        # Agent config preparation
+        # Validation never uses forced search prefill
         generation_manager = LLMGenerationManager(
             tokenizer=self.tokenizer,
             actor_rollout_wg=self.actor_rollout_wg,
@@ -683,6 +683,7 @@ class RayPPOTrainer(object):
             no_think_rl=self.config.algorithm.no_think_rl,
             search_url = self.config.retriever.url,
             topk = self.config.retriever.topk,
+            force_search_prefill=self.config.get('force_search_prefill', False),
         )
 
         generation_manager = LLMGenerationManager(

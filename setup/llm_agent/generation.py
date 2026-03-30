@@ -21,6 +21,7 @@ class GenerationConfig:
     no_think_rl: bool=False
     search_url: str = None
     topk: int = 3
+    force_search_prefill: bool = False
 
 class LLMGenerationManager:
     def __init__(
@@ -230,6 +231,11 @@ class LLMGenerationManager:
         active_num_list = [active_mask.sum().item()]
         rollings = gen_batch
 
+        # Tokenize <search> prefill once if needed
+        if self.config.force_search_prefill:
+            search_prefill_ids = self.tokenizer.encode("<search>", add_special_tokens=False)
+            search_prefill_tensor = torch.tensor([search_prefill_ids], dtype=torch.long)
+
         # Main generation loop
         for step in range(self.config.max_turns):
             if not active_mask.sum():
@@ -238,15 +244,32 @@ class LLMGenerationManager:
                 rollings.batch,
                 keys=['input_ids', 'attention_mask', 'position_ids']
             )
-            
+
+            # On step 0 with force_search_prefill, append <search> to input
+            if step == 0 and self.config.force_search_prefill:
+                bsz = rollings.batch['input_ids'].shape[0]
+                prefill_ids = search_prefill_tensor.expand(bsz, -1).to(rollings.batch['input_ids'].device)
+                prefill_mask = torch.ones_like(prefill_ids)
+                prefill_pos = rollings.batch['position_ids'][:, -1:] + 1
+                if prefill_ids.shape[1] > 1:
+                    prefill_pos = prefill_pos + torch.arange(prefill_ids.shape[1], device=prefill_pos.device).unsqueeze(0)
+                rollings.batch['input_ids'] = torch.cat([rollings.batch['input_ids'], prefill_ids], dim=1)
+                rollings.batch['attention_mask'] = torch.cat([rollings.batch['attention_mask'], prefill_mask], dim=1)
+                rollings.batch['position_ids'] = torch.cat([rollings.batch['position_ids'], prefill_pos], dim=1)
+
             # gen_output = self.actor_rollout_wg.generate_sequences(rollings)
             rollings_active = DataProto.from_dict({
                 k: v[active_mask] for k, v in rollings.batch.items()
-            })            
+            })
             gen_output = self._generate_with_gpu_padding(rollings_active)
 
-            meta_info = gen_output.meta_info            
+            meta_info = gen_output.meta_info
             responses_ids, responses_str = self._postprocess_responses(gen_output.batch['responses'])
+
+            # Prepend <search> to response strings so postprocess_predictions matches
+            if step == 0 and self.config.force_search_prefill:
+                responses_str = ["<search>" + r for r in responses_str]
+                responses_ids = self._batch_tokenize(responses_str)
             responses_ids, responses_str = self.tensor_fn._example_level_pad(responses_ids, responses_str, active_mask)
 
             # Execute in environment and process observations
