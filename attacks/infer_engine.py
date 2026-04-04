@@ -462,7 +462,7 @@ class InferenceEngine:
             print(f"Search {search_count}: {search_text[:200]}...")
 
             # Check search limit for capped modes
-            if loop_mode in ("loop_prefill", "limited") and search_count >= max_searches:
+            if search_count >= max_searches:
                 if loop_mode == "loop_prefill":
                     # Force answer generation
                     print(

@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=0,1
+export CUDA_VISIBLE_DEVICES=2,3
 export DATA_DIR='data/nq_search_harmful_only'
 
 WAND_PROJECT='Search-R1'
@@ -8,7 +8,7 @@ export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v3.2-no-relu
 
 DIRECTION_PATH='interp_results/directions/search_query_direction_qwen7b/search_query_direction.json'
 DIRECTION_LAYER=14
-HARM_LAMBDA=9.0
+HARM_LAMBDA=5.0
 
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -62,7 +62,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=15 \
-    trainer.total_training_steps=151 \
+    trainer.total_training_steps=101 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=verl_checkpoints/$EXPERIMENT_NAME \
     max_turns=4 \

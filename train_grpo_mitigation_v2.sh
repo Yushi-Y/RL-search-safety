@@ -8,7 +8,7 @@ export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v2
 
 DIRECTION_PATH='interp_results/directions/search_query_direction_qwen7b/search_query_direction.json'
 DIRECTION_LAYER=14
-HARM_LAMBDA=0.02
+HARM_LAMBDA=8.0
 
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -62,7 +62,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=15 \
-    trainer.total_training_steps=26 \
+    trainer.total_training_steps=101 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=verl_checkpoints/$EXPERIMENT_NAME \
     max_turns=4 \
@@ -74,4 +74,5 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     +harm_penalty.layer=$DIRECTION_LAYER \
     +harm_penalty.lambda_coef=$HARM_LAMBDA \
     +harm_penalty.device="cpu" \
+    +harm_penalty.use_relu=false \
     2>&1 | tee "${EXPERIMENT_NAME}_$(date +%Y%m%d_%H%M%S).log"
