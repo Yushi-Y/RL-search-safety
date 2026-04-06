@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # Normal RL (no mitigation)
 steps_normal = [0, 25, 50, 75, 100]
-normal_rl = [40.1, 19.6, 22.4, 27.8, 25.0]
+normal_rl = [40.1, 20.6, 21.4, 21.8, 23.0]
 
 # v1 mitigation (lambda=16, relu, mixed data)
 steps_v1 = [0, 25, 50, 75, 100]

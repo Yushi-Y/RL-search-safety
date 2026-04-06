@@ -8,7 +8,7 @@ from matplotlib.lines import Line2D
 
 steps = [0, 25, 50, 75, 100]
 # Search safety
-no_mitigation = [40, 20, 22, 28, 25]
+no_mitigation = [40.1, 20.6, 21.4, 21.8, 23.0]
 v1_mitigation = [40, 32, 33, 37, 38]
 
 # QA EM scores
