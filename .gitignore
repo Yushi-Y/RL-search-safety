@@ -24,6 +24,8 @@ lib64/
 # ==============================
 search_data/
 data/
+!data/nq_search/
+!data/nq_search_mixed/
 verl_checkpoints/
 **/*.pt
 **/*.ckpt
@@ -56,6 +58,7 @@ analyse_search/
 # Interp results (JSON + plots)
 # ==============================
 interp_results/**/*.json
+!interp_results/directions/**/*.json
 interp_results/**/*.png
 interp_results/**/*.pdf
 
