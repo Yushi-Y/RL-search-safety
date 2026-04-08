@@ -12,7 +12,7 @@ HARM_LAMBDA=9.0
 
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export RAY_TMPDIR=/VData/kebl6672/tmp_ray
+export RAY_TMPDIR=${RAY_TMPDIR:-/tmp/ray}
 mkdir -p $RAY_TMPDIR
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \

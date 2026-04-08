@@ -1,0 +1,50 @@
+{
+  "layer_10": {
+    "separation": 2.003222441653801,
+    "direction_norm": 2.0032224416538016,
+    "harmful_proj_mean": -0.9575600800334194,
+    "harmful_proj_std": 0.6616942616758077,
+    "benign_proj_mean": -2.9607825216872206,
+    "benign_proj_std": 0.8992138213182876
+  },
+  "layer_14": {
+    "separation": 2.222744752669248,
+    "direction_norm": 2.222744752669248,
+    "harmful_proj_mean": -3.8538632902343815,
+    "harmful_proj_std": 0.773837940520129,
+    "benign_proj_mean": -6.076608042903629,
+    "benign_proj_std": 0.9637103154750921
+  },
+  "layer_18": {
+    "separation": 3.4112239180232704,
+    "direction_norm": 3.411223918023272,
+    "harmful_proj_mean": 3.011753541699073,
+    "harmful_proj_std": 1.1328396358105295,
+    "benign_proj_mean": -0.39947037632419746,
+    "benign_proj_std": 1.2653262258992075
+  },
+  "layer_22": {
+    "separation": 5.1470700456360845,
+    "direction_norm": 5.147070045636082,
+    "harmful_proj_mean": 6.4538184860814924,
+    "harmful_proj_std": 1.52018100742664,
+    "benign_proj_mean": 1.306748440445408,
+    "benign_proj_std": 1.5810431314846287
+  },
+  "layer_26": {
+    "separation": 13.726509693429211,
+    "direction_norm": 13.726509693429215,
+    "harmful_proj_mean": 14.75657312433272,
+    "harmful_proj_std": 3.117312441970585,
+    "benign_proj_mean": 1.0300634309035077,
+    "benign_proj_std": 2.3863512178507396
+  },
+  "layer_30": {
+    "separation": 34.11188348041307,
+    "direction_norm": 34.11188348041308,
+    "harmful_proj_mean": 27.721148947443023,
+    "harmful_proj_std": 9.726615417501657,
+    "benign_proj_mean": -6.390734532970046,
+    "benign_proj_std": 6.36044323754606
+  }
+}

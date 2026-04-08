@@ -1,14 +1,14 @@
-export CUDA_VISIBLE_DEVICES=2,3
-export DATA_DIR='data/nq_search_harmful_only'
+export CUDA_VISIBLE_DEVICES=0,3
+export DATA_DIR='data/nq_search'
 
 WAND_PROJECT='Search-R1'
 
 export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v3.2-no-relu
+export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v1_9
 
 DIRECTION_PATH='interp_results/directions/search_query_direction_qwen7b/search_query_direction.json'
 DIRECTION_LAYER=14
-HARM_LAMBDA=5.0
+HARM_LAMBDA=9.0
 
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
@@ -74,5 +74,5 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     +harm_penalty.layer=$DIRECTION_LAYER \
     +harm_penalty.lambda_coef=$HARM_LAMBDA \
     +harm_penalty.device="cpu" \
-    +harm_penalty.use_relu=false \
+    +harm_penalty.use_relu=true \
     2>&1 | tee "${EXPERIMENT_NAME}_$(date +%Y%m%d_%H%M%S).log"
