@@ -1,19 +1,17 @@
 export CUDA_VISIBLE_DEVICES=0,1
-export DATA_DIR='data/nq_search_mixed'
+export DATA_DIR='data/nq_search'
 
 WAND_PROJECT='Search-R1'
 
-export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v2_16
+# Continue from step-75 checkpoint
+export BASE_MODEL='verl_checkpoints/search-r1-grpo-qwen2.5-7b-it-em/actor/global_step_75'
+export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-continue
 
-DIRECTION_PATH='interp_results/directions/search_query_direction_qwen7b/search_query_direction.json'
-DIRECTION_LAYER=14
-HARM_LAMBDA=16.0
-
-export VLLM_ATTENTION_BACKEND=XFORMERS
+# set -x
+export VLLM_ATTENTION_BACKEND=XFORMERS # vllm + qwen2-7b with flash_attn has some issues
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
-export RAY_TMPDIR=/VData/kebl6672/tmp_ray
-mkdir -p $RAY_TMPDIR
+
+# max_prompt_length = (config['training']['max_start_length'] + config['training']['max_response_length'] * (config['training']['max_turns'] - 1) + config['training']['max_obs_length'] * config['training']['max_turns'])
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=$DATA_DIR/train.parquet \
@@ -32,7 +30,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.optim.lr=5e-7 \
-    actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.285 \
+    actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.0 \
     actor_rollout_ref.actor.use_kl_loss=true \
     actor_rollout_ref.actor.ppo_mini_batch_size=32 \
     actor_rollout_ref.actor.ppo_micro_batch_size=2 \
@@ -62,17 +60,10 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=15 \
-    trainer.total_training_steps=101 \
+    trainer.total_training_steps=126 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=verl_checkpoints/$EXPERIMENT_NAME \
     max_turns=4 \
     retriever.url="http://127.0.0.1:8000/retrieve" \
     retriever.topk=3 \
-    +harm_penalty.enable=true \
-    +harm_penalty.direction_path=$DIRECTION_PATH \
-    +harm_penalty.model_path=$BASE_MODEL \
-    +harm_penalty.layer=$DIRECTION_LAYER \
-    +harm_penalty.lambda_coef=$HARM_LAMBDA \
-    +harm_penalty.device="cpu" \
-    +harm_penalty.use_relu=false \
-    2>&1 | tee "${EXPERIMENT_NAME}_$(date +%Y%m%d_%H%M%S).log"
+    2>&1 | tee $EXPERIMENT_NAME.log
