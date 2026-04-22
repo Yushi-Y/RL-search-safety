@@ -84,6 +84,10 @@ MODEL_PRESETS = {
         "model_id": "PeterJinGo/SearchR1-nq_hotpotqa_train-llama3.2-3b-it-em-ppo",
         "eos_tokens": [128001, 128009],
     },
+    "llama3b-it-grpo": {
+        "model_id": "PeterJinGo/SearchR1-nq_hotpotqa_train-llama3.2-3b-it-em-grpo",
+        "eos_tokens": [128001, 128009],
+    },
 }
 
 # ---------------------------------------------------------------------------
@@ -273,7 +277,7 @@ class InferenceEngine:
             model_id,
             torch_dtype=torch.bfloat16,
             device_map="auto",
-            attn_implementation="eager",
+            attn_implementation="sdpa",
         )
 
         # Stopping criteria for </search>

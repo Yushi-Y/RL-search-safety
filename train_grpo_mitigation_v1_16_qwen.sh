@@ -4,11 +4,11 @@ export DATA_DIR='data/nq_search'
 WAND_PROJECT='Search-R1'
 
 export BASE_MODEL='Qwen/Qwen2.5-7B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v1_9
+export EXPERIMENT_NAME=search-r1-grpo-qwen2.5-7b-it-em-mitigation-v1_16
 
 DIRECTION_PATH='interp_results/directions/search_query_direction_qwen7b/search_query_direction.json'
 DIRECTION_LAYER=14
-HARM_LAMBDA=9.0
+HARM_LAMBDA=16.0
 
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True

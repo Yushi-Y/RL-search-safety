@@ -2,35 +2,32 @@ import json
 import time
 import os
 import glob
+import argparse
 from prometheus_eval.vllm import VLLM
 from prometheus_eval import PrometheusEval
 from prometheus_eval.prompts import ABSOLUTE_PROMPT, SCORE_RUBRIC_TEMPLATE
 
 # Set cache directories to use /data partition instead of /home
-os.environ['VLLM_CACHE_ROOT'] = '/data/kebl6672/.cache/vllm'
-os.environ['TORCH_HOME'] = '/data/kebl6672/.cache/torch'
-os.environ['HF_HOME'] = '/data/kebl6672/.cache/huggingface'
+os.environ['VLLM_CACHE_ROOT'] = '/VData/kebl6672/.cache/vllm'
+os.environ['TORCH_HOME'] = '/VData/kebl6672/.cache/torch'
+os.environ['HF_HOME'] = '/VData/kebl6672/.cache/huggingface'
 
 # Create cache directories if they don't exist
-os.makedirs('/data/kebl6672/.cache/vllm', exist_ok=True)
-os.makedirs('/data/kebl6672/.cache/torch', exist_ok=True)
-os.makedirs('/data/kebl6672/.cache/huggingface', exist_ok=True)
+os.makedirs('/VData/kebl6672/.cache/vllm', exist_ok=True)
+os.makedirs('/VData/kebl6672/.cache/torch', exist_ok=True)
+os.makedirs('/VData/kebl6672/.cache/huggingface', exist_ok=True)
 
-def evaluate_file(input_file, prometheus, rubric_data):
+def evaluate_file(input_file, prometheus, rubric_data, output_dir):
     """Evaluate a single file and return results with average score"""
     print(f"Loading responses from {input_file}...")
     with open(input_file, "r", encoding='utf-8') as f:
         data = json.load(f)
-    
+
     print(f"Found {len(data)} responses to evaluate")
-    
+
     # Create output file path
     base_name = os.path.splitext(os.path.basename(input_file))[0]
-    output_dir = "/data/kebl6672/ARL/eval_results/qwen14b_all"
     output_file = os.path.join(output_dir, f"{base_name}_harm_results.json")
-    
-    # Create output directory if it doesn't exist
-    os.makedirs(output_dir, exist_ok=True)
     
     print("Starting harmful content evaluation...")
     
@@ -115,14 +112,27 @@ def evaluate_file(input_file, prometheus, rubric_data):
         return None, 0
 
 def main():
-    # Get all JSON files in refusal_responses directory
-    input_dir = "/data/kebl6672/ARL/all_responses/qwen14b_all"
-    input_files = glob.glob(os.path.join(input_dir, "*.json"))
-    
+    parser = argparse.ArgumentParser(description="Evaluate harmful content in model responses using Prometheus.")
+    parser.add_argument("--input_dir", type=str, default="/data/kebl6672/ARL/all_responses/qwen14b_all",
+                        help="Directory containing input JSON files")
+    parser.add_argument("--output_dir", type=str, default="/VData/kebl6672/ARL/eval_results/qwen14b_all",
+                        help="Directory to write scored output JSON files")
+    parser.add_argument("--pattern", type=str, default="*.json",
+                        help="Glob pattern for input files within input_dir (default: *.json)")
+    parser.add_argument("--gpu", type=str, default="0",
+                        help="CUDA device(s) to use, e.g. 0 or 0,1 (default: 0)")
+    args = parser.parse_args()
+
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu
+
+    input_files = sorted(glob.glob(os.path.join(args.input_dir, args.pattern)))
+
     if not input_files:
-        print("No JSON files found in refusal_responses directory")
+        print(f"No files matching '{args.pattern}' found in {args.input_dir}")
         return
-    
+
+    os.makedirs(args.output_dir, exist_ok=True)
+
     print(f"Found {len(input_files)} files to evaluate:")
     for file in input_files:
         print(f"  - {file}")
@@ -162,7 +172,7 @@ def main():
         print(f"{'='*100}")
         
         try:
-            avg_score, num_responses = evaluate_file(input_file, prometheus, rubric_data)
+            avg_score, num_responses = evaluate_file(input_file, prometheus, rubric_data, args.output_dir)
             file_results.append({
                 "filename": input_file,
                 "average_harm_score": avg_score,
@@ -190,8 +200,7 @@ def main():
             print(f"{filename}: ERROR - {result.get('error', 'Unknown error')}")
     
     # Save summary to file
-    summary_file = "/data/kebl6672/ARL/eval_results/qwen14b_all/summary_harm_scores.json"
-    os.makedirs(os.path.dirname(summary_file), exist_ok=True)
+    summary_file = os.path.join(args.output_dir, "summary_harm_scores.json")
     with open(summary_file, 'w', encoding='utf-8') as f:
         json.dump(file_results, f, indent=2, ensure_ascii=False)
     print(f"\nSummary saved to {summary_file}")

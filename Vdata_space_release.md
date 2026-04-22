@@ -30,9 +30,7 @@ These are 100GB+ models last modified 6+ months ago. Delete these first.
 | Model | Size | Last Modified | Last Accessed |
 |---|---|---|---|
 | `deepseek-ai/DeepSeek-R1` | 642 GB | 2025-03-25 | >1 year ago |
-| `meta-llama/Meta-Llama-3-70B-Instruct` | 132 GB | 2025-04-21 | ~1 year ago |
 | `meta-llama/Llama-3.1-70B-Instruct` | 132 GB | 2025-05-16 | 11 months ago |
-| `nvidia/Llama-3.3-Nemotron-70B-Reward-Multilingual` | 132 GB | 2025-08-04 | 8 months ago |
 | `Qwen/Qwen2.5-Math-72B` | 136 GB | 2025-08-21 | 8 months ago |
 | `Qwen/Qwen2.5-Math-72B-Instruct` | 136 GB | 2025-08-21 | 8 months ago |
 

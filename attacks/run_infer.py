@@ -89,7 +89,7 @@ def main():
     # I/O
     parser.add_argument(
         "--input", "-i",
-        default="refusal_datasets/arditi_harmful_full.json",
+        default="refusal_datasets/harmful_full_original_299.json",
         help="Input JSON file with questions.",
     )
     parser.add_argument(

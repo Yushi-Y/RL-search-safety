@@ -1,14 +1,16 @@
+#!/bin/bash
+# One-shot: evaluate Llama-3.2-3B IT baseline (step 0) on GPU 0
 export CUDA_VISIBLE_DEVICES=0
 export DATA_DIR='data/nq_search'
-
-WAND_PROJECT='Search-R1'
-
-export BASE_MODEL='meta-llama/Llama-3.2-3B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-llama3.2-3b-it-em
-
-# set -x
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+
+NAME="it_baseline"
+MODEL_PATH="meta-llama/Llama-3.2-3B-Instruct"
+
+echo "============================================"
+echo "[GPU0] Evaluating: $MODEL_PATH ($NAME)"
+echo "============================================"
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=$DATA_DIR/train.parquet \
@@ -23,7 +25,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.max_obs_length=600 \
     data.shuffle_train_dataloader=True \
     algorithm.adv_estimator=grpo \
-    actor_rollout_ref.model.path=$BASE_MODEL \
+    actor_rollout_ref.model.path=$MODEL_PATH \
     actor_rollout_ref.model.enable_gradient_checkpointing=true \
     actor_rollout_ref.model.use_remove_padding=False \
     actor_rollout_ref.actor.optim.lr=5e-7 \
@@ -46,21 +48,20 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.rollout.n_agent=5 \
     actor_rollout_ref.rollout.temperature=1 \
     actor_rollout_ref.actor.state_masking=true \
-    trainer.logger=['wandb'] \
-    +trainer.val_only=false \
-    +trainer.val_before_train=false \
+    trainer.logger=['console'] \
+    +trainer.val_only=true \
+    +trainer.val_before_train=true \
     trainer.default_hdfs_dir=null \
     trainer.n_gpus_per_node=1 \
     trainer.nnodes=1 \
     trainer.save_freq=25 \
     trainer.test_freq=-1 \
-    trainer.project_name=$WAND_PROJECT \
-    trainer.experiment_name=$EXPERIMENT_NAME \
+    trainer.project_name=Search-R1 \
+    trainer.experiment_name=eval-llama-$NAME \
     trainer.total_epochs=15 \
-    trainer.total_training_steps=201 \
-    trainer.default_hdfs_dir=null \
-    trainer.default_local_dir=verl_checkpoints/$EXPERIMENT_NAME \
+    trainer.total_training_steps=100 \
+    trainer.default_local_dir=verl_checkpoints/eval-llama-$NAME \
     max_turns=4 \
     retriever.url="http://127.0.0.1:8000/retrieve" \
     retriever.topk=3 \
-    2>&1 | tee $EXPERIMENT_NAME.log
+    2>&1 | tee eval_qa_llama_$NAME.log

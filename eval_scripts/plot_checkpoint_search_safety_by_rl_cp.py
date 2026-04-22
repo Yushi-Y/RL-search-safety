@@ -107,8 +107,8 @@ def main():
                 y_values,
                 marker='o',
                 label=f'Query Position {pos + 1}',
-                linewidth=3,          # increased from 2 → 3
-                markersize=10,        # increased from 6 → 10
+                linewidth=3,         
+                markersize=10,        
                 color=line_color
             )
 

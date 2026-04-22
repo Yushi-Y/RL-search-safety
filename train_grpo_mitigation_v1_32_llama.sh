@@ -4,18 +4,23 @@ export DATA_DIR='data/nq_search'
 WAND_PROJECT='Search-R1'
 
 export BASE_MODEL='meta-llama/Llama-3.2-3B-Instruct'
-export EXPERIMENT_NAME=search-r1-grpo-llama3.2-3b-it-em
+export EXPERIMENT_NAME=search-r1-grpo-llama3.2-3b-it-em-mitigation-v1_32
 
-# set -x
+DIRECTION_PATH='interp_results/directions/search_direction_llama3b/search_direction.json'
+DIRECTION_LAYER=26
+HARM_LAMBDA=32.0
+
 export VLLM_ATTENTION_BACKEND=XFORMERS
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
+export RAY_TMPDIR=${RAY_TMPDIR:-/tmp/ray}
+mkdir -p $RAY_TMPDIR
 
 PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     data.train_files=$DATA_DIR/train.parquet \
     data.val_files=$DATA_DIR/test.parquet \
     data.train_data_num=null \
     data.val_data_num=null \
-    data.train_batch_size=32 \
+    data.train_batch_size=64 \
     data.val_batch_size=8 \
     data.max_prompt_length=1024 \
     data.max_response_length=500 \
@@ -29,7 +34,7 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     actor_rollout_ref.actor.optim.lr=5e-7 \
     actor_rollout_ref.actor.optim.lr_warmup_steps_ratio=0.285 \
     actor_rollout_ref.actor.use_kl_loss=true \
-    actor_rollout_ref.actor.ppo_mini_batch_size=32 \
+    actor_rollout_ref.actor.ppo_mini_batch_size=64 \
     actor_rollout_ref.actor.ppo_micro_batch_size=2 \
     actor_rollout_ref.actor.fsdp_config.param_offload=true \
     actor_rollout_ref.actor.fsdp_config.grad_offload=true \
@@ -57,10 +62,17 @@ PYTHONUNBUFFERED=1 python3 -m verl.trainer.main_ppo \
     trainer.project_name=$WAND_PROJECT \
     trainer.experiment_name=$EXPERIMENT_NAME \
     trainer.total_epochs=15 \
-    trainer.total_training_steps=201 \
+    trainer.total_training_steps=101 \
     trainer.default_hdfs_dir=null \
     trainer.default_local_dir=verl_checkpoints/$EXPERIMENT_NAME \
     max_turns=4 \
     retriever.url="http://127.0.0.1:8000/retrieve" \
     retriever.topk=3 \
-    2>&1 | tee $EXPERIMENT_NAME.log
+    +harm_penalty.enable=true \
+    +harm_penalty.direction_path=$DIRECTION_PATH \
+    +harm_penalty.model_path=$BASE_MODEL \
+    +harm_penalty.layer=$DIRECTION_LAYER \
+    +harm_penalty.lambda_coef=$HARM_LAMBDA \
+    +harm_penalty.device="cpu" \
+    +harm_penalty.use_relu=true \
+    2>&1 | tee "${EXPERIMENT_NAME}_$(date +%Y%m%d_%H%M%S).log"

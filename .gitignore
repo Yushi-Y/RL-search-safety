@@ -68,6 +68,7 @@ interp_results/**/*.pdf
 figures/*.png
 figures/*.pdf
 figures/*.json
+figures/*.py
 
 # ==============================
 # Logs & experiment tracking
@@ -85,6 +86,8 @@ log/
 attacks/infer_qwen14b_local_ppo_scripts/
 attacks/infer_research_q7b_loc_po/
 attacks/infer_v2_local/
+attacks/llama_rl/
+attacks/qwen_rl/
 
 # ==============================
 # Specific eval scripts (generated)
@@ -136,3 +139,4 @@ htmlcov/
 *.pdf
 mitigation/plan.md
 eval_results.json
+Yushi_Agentic_RL_Safety/

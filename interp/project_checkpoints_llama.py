@@ -1,15 +1,15 @@
 """
-Project qwen7b IT and Search-R1 (RL-ed) representations onto the search_query direction.
+Project llama3b IT and RL checkpoints onto the search direction.
 
-For each model (IT baseline + RL-trained Search-R1):
+For each model (IT baseline + local RL checkpoints):
 1. Load model
 2. For each harmful prompt, format with search system prompt + prefilled <search>
 3. Single forward pass, extract hidden state at last token (<search>)
-4. Project onto search_query direction (attack vs natural, extracted from IT model)
+4. Project onto search direction (harmful vs benign, extracted from IT model)
 5. Save mean projections per model
 
-Hypothesis: RL training → larger projection onto search_query direction
-(i.e., the model's <search> representation becomes more "attack-like" rather than "natural-like").
+Hypothesis: RL training → larger projection onto search direction
+(i.e., the model's <search> representation becomes more "harmful-search-like").
 """
 
 import torch
@@ -21,23 +21,23 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 
 # --- Configuration ---
-DIRECTION_FILE = Path("/VData/kebl6672/ARL/interp_results/directions/search_query_direction_qwen7b/search_query_direction.json")
-HARMFUL_PATH = Path("/VData/kebl6672/ARL/refusal_datasets/harmful_combined.json")
+DIRECTION_FILE = Path("/VData/kebl6672/ARL/interp_results/directions/search_direction_llama3b/search_direction.json")
+HARMFUL_PATH = Path("/VData/kebl6672/ARL/refusal_datasets/harmful_combined_871.json")
 OUTPUT_DIR = Path("/VData/kebl6672/ARL/interp_results/checkpoint_projections")
 
-CKPT_BASE = Path("/VData/kebl6672/ARL/verl_checkpoints/search-r1-grpo-qwen2.5-7b-it-em/actor")
+CKPT_BASE = Path("/VData/kebl6672/ARL/verl_checkpoints/search-r1-grpo-llama3.2-3b-it-em/actor")
 
 MODELS = {
-    "Qwen2.5-7B-IT": "Qwen/Qwen2.5-7B-Instruct",
+    "Llama3.2-3B-IT": "meta-llama/Llama-3.2-3B-Instruct",
 }
 
-# Add all local 7B checkpoints
+# Add all local Llama 3B checkpoints
 for step_dir in sorted(CKPT_BASE.glob("global_step_*"), key=lambda p: int(p.name.split("_")[-1])):
     step_num = int(step_dir.name.split("_")[-1])
     MODELS[f"Step {step_num}"] = str(step_dir)
 
-# Search-R1 last (fully trained RL model)
-MODELS["Search-R1 (RL)"] = "PeterJinGo/SearchR1-nq_hotpotqa_train-qwen2.5-7b-it-em-grpo-v0.2"
+# Search-R1 last (fully trained RL model, published on HF)
+MODELS["Search-R1 (RL)"] = "PeterJinGo/SearchR1-nq_hotpotqa_train-llama3.2-3b-it-em-grpo"
 
 # Match extraction split: 600 sampled with seed 42 for direction extraction, rest held out
 EXTRACTION_SEED = 42
@@ -68,10 +68,10 @@ def format_prompt(question, tokenizer):
 def main():
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # Load search_query direction
+    # Load search direction
     if not DIRECTION_FILE.exists():
         print(f"ERROR: Direction file not found: {DIRECTION_FILE}")
-        print("Run extract_search_query_d.py for qwen7b first.")
+        print("Run extract_d.py for llama3b first.")
         return
 
     with open(DIRECTION_FILE) as f:
@@ -128,7 +128,7 @@ def main():
 
         torch.cuda.empty_cache()
 
-        # Project onto search_query direction
+        # Project onto search direction
         ckpt_results = {}
         for key in layer_keys:
             stacked = torch.stack(reps[key]).double()
@@ -147,7 +147,7 @@ def main():
         torch.cuda.empty_cache()
 
     # Save results
-    output_file = OUTPUT_DIR / "qwen7b_all_checkpoints_search_query_projections.json"
+    output_file = OUTPUT_DIR / "llama3b_all_checkpoints_search_projections.json"
     with open(output_file, "w") as f:
         json.dump(all_results, f, indent=2)
     print(f"\nSaved: {output_file}")
@@ -164,12 +164,12 @@ def main():
 
     ax.set_xticks(x)
     ax.set_xticklabels(ckpt_names, rotation=45, ha='right')
-    ax.set_ylabel("Mean projection onto search_query direction")
-    ax.set_title("Qwen7B: <search> projection across training checkpoints")
+    ax.set_ylabel("Mean projection onto search direction")
+    ax.set_title("Llama3B: <search> projection across training checkpoints")
     ax.legend()
     ax.grid(True, alpha=0.3)
     plt.tight_layout()
-    plot_file = OUTPUT_DIR / "qwen7b_all_checkpoints_search_query_projection.png"
+    plot_file = OUTPUT_DIR / "llama3b_all_checkpoints_search_projection.png"
     plt.savefig(plot_file, dpi=300)
     plt.close()
     print(f"Saved plot: {plot_file}")
