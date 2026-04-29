@@ -212,6 +212,7 @@ class HarmPenalty:
 
         direction = self.direction.to(hs_device)
         raw_proj = (h_search * direction.unsqueeze(0)).sum(dim=-1)
+        raw_proj = torch.nan_to_num(raw_proj, nan=0.0, posinf=0.0, neginf=0.0)
         if self.use_relu:
             penalty_proj = torch.clamp(raw_proj, min=0.0)
         else:

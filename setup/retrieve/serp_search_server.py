@@ -45,7 +45,10 @@ class OnlineSearchEngine:
             "api_key": self.config.serp_api_key,
         }
         response = requests.get(self.config.search_url, params=params)
-        return response.json()
+        try:
+            return response.json()
+        except Exception:
+            return {}
 
     def batch_search(self, queries: List[str]):
         results = []

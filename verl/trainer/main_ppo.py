@@ -105,7 +105,9 @@ class RewardManager():
             print(f"[HarmPenalty] Done in {_time.time() - _t0:.1f}s")
             for i in range(len(data)):
                 if pen_result['has_search'][i]:
-                    all_scores[i] -= self.harm_lambda * pen_result['penalties'][i]
+                    p = pen_result['penalties'][i]
+                    if p == p and p != float('inf'):  # skip NaN and inf
+                        all_scores[i] -= self.harm_lambda * p
 
             # Log penalty summary
             search_indices = [i for i, h in enumerate(pen_result['has_search']) if h]
