@@ -1,6 +1,5 @@
 # Agentic RL for Search is Unsafe
 
-Code for the paper *"Agentic Reinforcement Learning for Search is Unsafe"* (Yang et al., 2025). [[Paper]](https://arxiv.org/abs/2510.17431)
 
 We train search-enabled LLMs (Llama and Qwen series) with RL (PPO/GRPO) following [Search-R1](https://github.com/PeterGriffinJin/Search-R1) (Jin et al., 2025), and evaluate their safety vulnerabilities under search-based jailbreak attacks.
 
@@ -124,16 +123,3 @@ python eval_scripts/search.py --input_file <responses.json> --output_file <resul
 
 Results are saved to `eval_results/`.
 
-## Citation
-
-```bibtex
-@misc{yang2025agenticreinforcementlearningsearch,
-  title         = {Agentic Reinforcement Learning for Search is Unsafe},
-  author        = {Yang, Yushi and Padarha, Shreyansh and Lee, Andrew and Mahdi, Adam},
-  year          = {2025},
-  eprint        = {2510.17431},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.CL},
-  url           = {https://arxiv.org/abs/2510.17431}
-}
-```

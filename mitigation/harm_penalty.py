@@ -55,7 +55,7 @@ class HarmPenalty:
             device_map = None
             self.device = torch.device("cpu")
 
-        model_dtype = torch.bfloat16 if use_gpu else torch.float32
+        model_dtype = torch.bfloat16  # bfloat16 on both GPU and CPU (modern CPUs support AVX-512 BF16)
 
         # Load direction vector
         with open(direction_path) as f:
