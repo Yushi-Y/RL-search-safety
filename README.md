@@ -1,4 +1,4 @@
-# Agentic RL for Search is Unsafe
+# Agentic RL for Search Misaligns Instruction-tuning
 
 
 We train search-enabled LLMs (Llama and Qwen series) with RL (PPO/GRPO) following [Search-R1](https://github.com/PeterGriffinJin/Search-R1) (Jin et al., 2025), and evaluate their safety vulnerabilities under search-based jailbreak attacks.
